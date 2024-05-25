@@ -6,7 +6,8 @@ import Data.List.Extra(groupOn)
 
 type Amount = Double
 type User = String
-data Account = UserAccount User deriving (Show, Eq, Ord)
+type Group = [User]
+data Account = UserAccount User | GroupAccount Group deriving (Show, Eq, Ord)
 type DebitAccount = Account
 type CreditAccount = Account
 
@@ -64,28 +65,45 @@ data Split
   deriving (Show, Eq)
 
 data Action = PurchaseAction Purchase | PaymentAction Transaction deriving Show
-data Actions = Actions [User] [Action] deriving Show
+data Actions = Actions [User] [Group] [Action] deriving Show
 
 actionsToTransactions :: Actions -> [Transaction]
-actionsToTransactions actions@(Actions _ actionsArr)
+actionsToTransactions actions@(Actions _ _ actionsArr)
   = concat . map (toTransactions actions) $ actionsArr
 
+groupsByUsers :: [Group] -> [(User, Group)]
+groupsByUsers
+  = foldl
+    (\result g ->
+        foldl
+        (\groupByUsers user -> (user, g):groupByUsers) [] g ++ result)
+    []
+
+t4 = groupsByUsers [["Ilya", "Tasha"], ["Alena", "Dima"]]
+
+userToAccount groupsByUsers user
+  = case lookup user groupsByUsers of
+      Nothing -> UserAccount user
+      Just group -> GroupAccount group
+
 toTransactions :: Actions -> Action -> [Transaction]
-toTransactions _ (PurchaseAction
+toTransactions (Actions _ groups _) (PurchaseAction
                   (Purchase debitUser amount (SplitEqually users)))
   = concat
     . map
       (\case
-          user | user /= debitUser -> [ Transaction
-                                        (UserAccount debitUser)
-                                        (UserAccount user)
-                                        (amount/(fromIntegral $ length users))
-                                      ]
+          user | user /= debitUser
+                  -> [ Transaction
+                       (userToAccount groupsByUsersVal debitUser)
+                       (userToAccount groupsByUsersVal user)
+                       (amount/(fromIntegral $ length users))
+                     ]
                | otherwise -> []
       )
     $ users
+  where groupsByUsersVal = groupsByUsers groups
 toTransactions
-  actions@(Actions users _)
+  actions@(Actions users _ _)
   (PurchaseAction
     (Purchase debitUser amount SplitEquallyAll))
   = toTransactions actions
@@ -149,7 +167,7 @@ nullifyBalances = nullifyBalances0 []
 users1 = ["Serge", "Sasha", "Pasha", "Ilya", "Tasha", "Kolya", "Alena", "Dima"]
 
 actions1
-  = Actions users1
+  = Actions users1 [["Dima", "Alena"], ["Sasha", "Pasha"]]
     [ PurchaseAction (Purchase "Serge" 100.25 SplitEquallyAll)
     , PurchaseAction (Purchase "Serge" 14.05 (SplitEqually ["Ilya"]))
     , PurchaseAction (Purchase "Dima"  21.64  SplitEquallyAll)
@@ -169,7 +187,7 @@ t2 = nullifyBalances . actionsToTransactions $ actions1
 
 users2 = ["Tasha", "Ilya", "Alena", "Niki", "Dmitry", "Serge"]
 actions2
-  = Actions users2
+  = Actions users2 [["Dmitry", "Alena"]]
     [ PurchaseAction (Purchase "Tasha" 9     SplitEquallyAll)
     , PurchaseAction (Purchase "Ilya"  140   SplitEquallyAll)
     , PurchaseAction (Purchase "Alena" 9.6   SplitEquallyAll)
