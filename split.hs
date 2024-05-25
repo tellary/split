@@ -146,14 +146,14 @@ nullifyBalances0 newTxs txs
 
 nullifyBalances = nullifyBalances0 []
 
-users = ["Serge", "Sasha", "Pasha", "Ilya", "Tasha", "Kolya", "Alena", "Dima"]
+users1 = ["Serge", "Sasha", "Pasha", "Ilya", "Tasha", "Kolya", "Alena", "Dima"]
 
-actions
-  = Actions users
+actions1
+  = Actions users1
     [ PurchaseAction (Purchase "Serge" 100.25 SplitEquallyAll)
     , PurchaseAction (Purchase "Serge" 14.05 (SplitEqually ["Ilya"]))
-    , PurchaseAction (Purchase "Dima" 21.64 SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya" 14 SplitEquallyAll)
+    , PurchaseAction (Purchase "Dima"  21.64  SplitEquallyAll)
+    , PurchaseAction (Purchase "Ilya"  14     SplitEquallyAll)
     , PurchaseAction
       (Purchase "Ilya" 24
        (SplitEqually ["Ilya", "Kolya", "Alena", "Dima", "Tasha"]))
@@ -163,6 +163,17 @@ t1
   = groupOn transactionAccounts
   . sortOn transactionAccounts
   . actionsToTransactions
-  $ actions
+  $ actions1
 
-t2 = nullifyBalances . actionsToTransactions $ actions
+t2 = nullifyBalances . actionsToTransactions $ actions1
+
+users2 = ["Tasha", "Ilya", "Alena", "Niki", "Dmitry", "Serge"]
+actions2
+  = Actions users2
+    [ PurchaseAction (Purchase "Tasha" 9     SplitEquallyAll)
+    , PurchaseAction (Purchase "Ilya"  140   SplitEquallyAll)
+    , PurchaseAction (Purchase "Alena" 9.6   SplitEquallyAll)
+    , PurchaseAction (Purchase "Alena" 13.75 SplitEquallyAll)
+    ]
+
+t3 = nullifyBalances . actionsToTransactions $ actions2

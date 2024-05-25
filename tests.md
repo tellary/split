@@ -1,3 +1,5 @@
+## Test 1
+
 Такие учел траты:
 - Я купил пиццу, 100.25, ее нужно разделить на всех
 - Также я купил салат для Ильи за 14.05
@@ -13,3 +15,16 @@
 * Таша - 19.64
 
 Таша должна Илье 2.15 🙂
+
+## Test 2
+
+- Tasha paid $9 for printing faces
+- Ilya paid $140 for keyboard
+- Alena paid $9.6 for baking hardware
+- Alena paid $13.75 for baking groceries
+
+- Niki owes $28.73 to Ilya
+- Dmitry owes $28.73 to Ilya
+- Serge owes $28.72 to Ilya
+- Tasha owes $19.73 to Ilya
+- Alena owes $5.37 to Ilya
