@@ -1,0 +1,39 @@
+@startgantt
+
+Project starts 2024-05-27
+saturday are closed
+sunday are closed
+
+[Round to cents] requires 1 day
+[Round to cents] is 0% completed
+[Print transaction report per user] is 0% completed
+[Print transaction report per user] starts at [Round to cents]'s end
+
+-- Implement Web UI --
+
+[Decide if I want to use Miso or FRP] is 0% completed
+[Decide if I want to use Miso or FRP] starts at [Print transaction report per user]'s end
+[Implement creation of expense sheet with users in browser storage] starts at [Decide if I want to use Miso or FRP]'s end and is 0% completed
+[Implement addition of "split all" expenses] starts at [Implement creation of expense sheet with users in browser storage]'s end and is 0% completed
+[Implement user groups] starts at [Implement addition of "split all" expenses]'s end and is 0% completed
+[Implement "split equally" expenses] starts at [Implement user groups]'s end and is 0% completed
+[Implement transaction report per user] starts at [Implement "split equally" expenses]'s end and is 0% completed
+[Create SSL certificate for bar-code scanner to use the same method for money split] starts at [Implement transaction report per user]'s end and is 0% completed
+[Deploy money split] starts at [Create SSL certificate for bar-code scanner to use the same method for money split]'s end and is 0% completed
+[Add user stat] starts at [Deploy money split]'s end and is 0% completed
+[Advertise among friends] starts at [Add user stat]'s end and is 0% completed
+[Update LinkedIn] starts at [Advertise among friends]'s end and is 0% completed
+[Advertise in LinkedIn] starts at [Update LinkedIn]'s end and is 0% completed
+[Add context ads] starts at [Advertise in LinkedIn]'s end and is 0% completed
+
+-- Implement backend --
+
+[Decide if I want to use serverless] starts at [Add context ads]'s end and is 0% completed
+[Implement a restful method that just overrides `Actions`] starts at [Decide if I want to use serverless]'s end and is 0% completed
+[Implement OAuth with Google] starts at [Implement a restful method that just overrides `Actions`]'s end and is 0% completed
+[Restrict workspace editing to owner] starts at [Implement OAuth with Google]'s end and is 0% completed
+[Implement addition of users to the workspace] starts at [Restrict workspace editing to owner]'s end and is 0% completed
+[Allow workpsace editing to users in the workspace] starts at [Implement addition of users to the workspace]'s end and is 0% completed
+[Implement `Actions` merge] starts at [Allow workpsace editing to users in the workspace]'s end and is 0% completed
+
+@endgantt
