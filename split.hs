@@ -103,14 +103,14 @@ userToAccount groupsByUsers user
 toTransactions :: Actions -> Action -> [Transaction]
 toTransactions (Actions _ groups _) (PurchaseAction
                   (Purchase debitUser amount (SplitEqually users)))
-  = map (
+  = filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
+  . map (
       \(user, amount) ->
         Transaction
         (userToAccount groupsByUsersVal debitUser)
         (userToAccount groupsByUsersVal user)
         amount
     )
-  . filter (\(user, _) -> user /= debitUser)
   $ zip users (divAmounts amount (length users))
   where groupsByUsersVal = groupsByUsers groups
 toTransactions
