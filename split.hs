@@ -3,13 +3,26 @@
 import Data.Maybe (isJust, fromJust)
 import Data.List (sort, sortBy, sortOn, group, groupBy, find)
 import Data.List.Extra(groupOn)
+import Data.Decimal
 
-type Amount = Double
+type Amount = Decimal
 type User = String
 type Group = [User]
 data Account = UserAccount User | GroupAccount Group deriving (Show, Eq, Ord)
 type DebitAccount = Account
 type CreditAccount = Account
+
+round2 :: Decimal -> Decimal
+round2 d = fromIntegral (round (d*100))/100
+
+divAmounts :: Decimal -> Int -> [Decimal]
+divAmounts d n = loop d n []
+  where
+    part :: Decimal
+    part = round2 (d/fromIntegral n)
+    loop :: Decimal -> Int -> [Decimal] -> [Decimal]
+    loop left 1 result = left:result
+    loop left n result = loop (left - part) (n - 1) (part:result)
 
 data Transaction
   = Transaction
@@ -89,18 +102,15 @@ userToAccount groupsByUsers user
 toTransactions :: Actions -> Action -> [Transaction]
 toTransactions (Actions _ groups _) (PurchaseAction
                   (Purchase debitUser amount (SplitEqually users)))
-  = concat
-    . map
-      (\case
-          user | user /= debitUser
-                  -> [ Transaction
-                       (userToAccount groupsByUsersVal debitUser)
-                       (userToAccount groupsByUsersVal user)
-                       (amount/(fromIntegral $ length users))
-                     ]
-               | otherwise -> []
-      )
-    $ users
+  = map (
+      \(user, amount) ->
+        Transaction
+        (userToAccount groupsByUsersVal debitUser)
+        (userToAccount groupsByUsersVal user)
+        amount
+    )
+  . filter (\(user, _) -> user /= debitUser)
+  $ zip users (divAmounts amount (length users))
   where groupsByUsersVal = groupsByUsers groups
 toTransactions
   actions@(Actions users _ _)
