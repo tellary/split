@@ -1,3 +1,5 @@
+## TODO
+
 - Round to cents
 - Print transaction report per user
 - Implement Web UI
@@ -25,3 +27,5 @@
     - Implement addition of users to the workspace
     - Allow workpsace editing to users in the workspace
     - Implement `Actions` merge
+
+## DONE
