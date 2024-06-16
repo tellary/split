@@ -65,7 +65,15 @@ twoAccounts txs
   | length accs == 2 = (head accs, head . tail $ accs)
   | otherwise = error $ "Only two accounts expected, but found " ++ show accs
   where accs = transactionsAccounts txs
-  
+
+sameReason :: [Transaction] -> TxReason
+sameReason txs
+  | length reasonGroups == 1 = head reasonGroups
+  | otherwise
+  = error $ "Only one transaction reason expected, but found "
+    ++ show reasonGroups
+  where reasonGroups = map head . group . sort . map txReason $ txs
+
 sameAccountsDirectional :: Transaction -> Transaction -> Bool
 sameAccountsDirectional tx1 tx2
   = transactionAccountsDirectional tx1 == transactionAccountsDirectional tx2
@@ -103,7 +111,8 @@ userToAccount groupsByUsers user
 toTransactions :: Actions -> Action -> [Transaction]
 toTransactions (Actions _ groups _) (PurchaseAction
                   purchase@(Purchase debitUser _ amount (SplitEqually users)))
-  = filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
+  = collapseSameAccounts
+  . filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
   . map (
       \(user, amount) ->
         Transaction
@@ -134,17 +143,20 @@ accountsBalances txs
   where
     accs = transactionsAccounts txs
 
-collapseTwoAccountsTransactions txs
-  | balanceAmount >  0 = Just $ Transaction a1 a2 balanceAmount
+collapseSameTransactions :: [Transaction] -> Maybe Transaction
+collapseSameTransactions txs
+  | balanceAmount >  0 = Just $ Transaction a1 a2 balanceAmount reason
   | balanceAmount == 0 = Nothing
-  | otherwise          = Just $ Transaction a2 a1 (- balanceAmount)
+  | otherwise          = Just $ Transaction a2 a1 (- balanceAmount) reason
   where (a1, a2) = twoAccounts txs
         balanceAmount = balance a2 txs
+        reason = sameReason txs
 
+-- | Collapses transactions with the same debit account, credit account and reason
 collapseTransactions key
   = map fromJust
   . filter isJust
-  . map collapseTwoAccountsTransactions
+  . map collapseSameTransactions
   . groupOn key
   . sortOn key
   . filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
