@@ -1,9 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 
-import Data.Decimal    (Decimal)
-import Data.List       (find, group, groupBy, sort, sortBy, sortOn)
-import Data.List.Extra (groupOn)
-import Data.Maybe      (fromJust, isJust)
+import Data.Decimal       (Decimal)
+import Data.List          (find, group, groupBy, sort, sortBy, sortOn)
+import Data.List.Extra    (groupOn)
+import Data.Maybe         (fromJust, isJust)
+import Text.Pretty.Simple (pPrint)
 
 type Amount = Decimal
 type User = String
@@ -193,7 +194,7 @@ t1
   . actionsToTransactions
   $ actions1
 
-t2 = nullifyBalances . actionsToTransactions $ actions1
+nullify1 = nullifyBalances . actionsToTransactions $ actions1
 
 users2 = ["Tasha", "Ilya", "Alena", "Niki", "Dmitry", "Serge"]
 actions2
@@ -204,4 +205,34 @@ actions2
     , PurchaseAction (Purchase "Alena" 13.75 SplitEquallyAll)
     ]
 
-t3 = nullifyBalances . actionsToTransactions $ actions2
+nullify2 = nullifyBalances . actionsToTransactions $ actions2
+
+users3 = ["Tasha", "Ilya", "Alena", "Dima", "Aigiza"]
+actions3
+  = Actions users3 [["Dima", "Alena"], ["Tasha", "Ilya"]]
+    [ -- AirBnB, USD/EUR = 0.9211 as of May 25th
+      PurchaseAction
+      ( Purchase "Ilya" (round2 (478.40/0.9211)) SplitEquallyAll )
+    , -- Pingo Doce Óbidos
+      PurchaseAction (Purchase "Ilya" 178.47   SplitEquallyAll)
+    , -- Gasoline
+      PurchaseAction (Purchase "Ilya" 58.83    SplitEquallyAll)
+    , -- Road tolls x2
+      PurchaseAction (Purchase "Ilya" (2*13.8) SplitEquallyAll)
+    , -- Pingo Doce Coimbra
+      PurchaseAction (Purchase "Ilya" 41.86    SplitEquallyAll)
+    , -- Padaria Flor de Aveiro
+      PurchaseAction
+      ( Purchase "Dima" 19.45
+        ( SplitEqually ["Dima", "Alena", "Tasha", "Ilya"] )
+      )
+    , -- Cafe Papa
+      PurchaseAction (Purchase "Ilya" 77.5     SplitEquallyAll)
+    , -- Cafe Trazarte in Óbidos
+      PurchaseAction (Purchase "Aigiza" 65.4   SplitEquallyAll)
+    ]
+
+nullify3 = nullifyBalances . actionsToTransactions $ actions3
+
+printNullify3 :: IO ()
+printNullify3 = pPrint nullify3
