@@ -1,9 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 
-import Data.Maybe (isJust, fromJust)
-import Data.List (sort, sortBy, sortOn, group, groupBy, find)
-import Data.List.Extra(groupOn)
-import Data.Decimal
+import Data.Decimal    (Decimal)
+import Data.List       (find, group, groupBy, sort, sortBy, sortOn)
+import Data.List.Extra (groupOn)
+import Data.Maybe      (fromJust, isJust)
 
 type Amount = Decimal
 type User = String
