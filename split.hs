@@ -45,10 +45,14 @@ creditAmount acc tx@(Transaction _ _ amount _)
 debitAmount acc tx@(Transaction _ _ amount _)
   | isDebit acc tx = Just amount
   | otherwise = Nothing
-debitTransactions :: Account -> [Transaction] -> [Transaction]
-debitTransactions account = filter ((account ==) . txDebitAccount)
-creditTransactions :: Account -> [Transaction] -> [Transaction]
-creditTransactions account = filter ((account ==) . txCreditAccount)
+accountTransactions :: Account -> [Transaction] -> [Transaction]
+accountTransactions account
+  = filter
+    (\tx -> account == txDebitAccount tx || account == txCreditAccount tx)
+debitAccountTransactions :: Account -> [Transaction] -> [Transaction]
+debitAccountTransactions account = filter ((account ==) . txDebitAccount)
+creditAccountTransactions :: Account -> [Transaction] -> [Transaction]
+creditAccountTransactions account = filter ((account ==) . txCreditAccount)
 transactionAccountsDirectional :: Transaction -> (DebitAccount, CreditAccount)
 transactionAccountsDirectional (Transaction debitAccount creditAccount _ _)
   = (debitAccount, creditAccount)
@@ -138,6 +142,7 @@ balance account transactions
   - ( sum . fromJust . sequence . filter isJust . map (debitAmount account)
       $ transactions )
 
+accountsBalances :: [Transaction] -> [(Amount, Account)]
 accountsBalances txs
   = map (\acc -> (balance acc txs, acc)) accs
   where
