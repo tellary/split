@@ -210,13 +210,26 @@ verbForm (UserAccount _)  verb Past Passive = "was " ++ verb ++ "ed"
 verbForm (GroupAccount _) verb Past Passive = "were " ++ verb ++ "ed"
 
 printAccountOwesTo :: Account -> [Transaction] -> String
+printAccountOwesTo acc []
+  = error $ printf "%s doesn't owe anything" (printAccount acc)
 printAccountOwesTo acc [tx]
   = printf "%s %s %s to %s"
     (printAccount acc)
     (verbForm acc "owe" Present Active)
     (show . txAmount $ tx)
     (printAccount . txCreditAccount $ tx)
-
+printAccountOwesTo acc txs
+  = printf "%s %s\n\n%s"
+    (printAccount acc)
+    (verbForm acc "owe" Present Active)
+    ( intercalate "\n"
+      . map
+        (\tx -> printf "- %s to %s"
+                (show . txAmount $ tx)
+                (printAccount . txCreditAccount $ tx)
+        )
+      $ txs
+    )
 printAmount :: Transaction -> String
 printAmount
       ( Transaction
@@ -283,11 +296,19 @@ printAccountWasPayed acc txs
 
 printAccountReport0
   :: Account -> [Transaction] -> [Transaction] -> [Transaction] -> String
-printAccountReport0 acc txOwesTo txPayed txOwes
-  =  printf "%s\n\n%s\n\n%s"
-     (printAccountOwesTo acc txOwesTo)
-     (printAccountPayed acc txPayed)
-     (printAccountWasPayed acc txOwes)
+printAccountReport0 acc [txOwesTo] [] txsWasPayed
+  = printf "%s\n\n%s"
+    (printAccountOwesTo acc [txOwesTo])
+    (printTransactions txsWasPayed)
+printAccountReport0 acc txsOwesTo [] txsWasPayed
+  = printf "%s\n\n%s"
+    (printAccountOwesTo acc txsOwesTo)
+    (printAccountWasPayed acc txsWasPayed)
+printAccountReport0 acc txsOwesTo txsPayed txsWasPayed
+  = printf "%s\n\n%s\n\n%s"
+    (printAccountOwesTo acc txsOwesTo)
+    (printAccountPayed acc txsPayed)
+    (printAccountWasPayed acc txsWasPayed)
 
 printAccountReport acc (txNew, txOld)
   = printAccountReport0 acc
@@ -319,6 +340,21 @@ t1
   $ actions1
 
 nullify1 = nullifyBalances . actionsToTransactions $ actions1
+printNullify1 :: IO ()
+printNullify1 = pPrint nullify1
+
+printSergeReport1
+  = putStrLn . printAccountReport (UserAccount "Serge") $ nullify1
+printSashaReport1
+  = putStrLn . printAccountReport (GroupAccount ["Sasha", "Pasha"]) $ nullify1
+printIlyaReport1
+  = putStrLn . printAccountReport (UserAccount "Ilya") $ nullify1
+printTashaReport1
+  = putStrLn . printAccountReport (UserAccount "Tasha") $ nullify1
+printKolyaReport1
+  = putStrLn . printAccountReport (UserAccount "Kolya") $ nullify1
+printDimaReport1
+  = putStrLn . printAccountReport (GroupAccount ["Dima", "Alena"]) $ nullify1
 
 users2 = ["Tasha", "Ilya", "Alena", "Niki", "Dmitry", "Serge"]
 actions2
@@ -334,6 +370,19 @@ actions2
     ]
 
 nullify2 = nullifyBalances . actionsToTransactions $ actions2
+printNullify2 :: IO ()
+printNullify2 = pPrint nullify2
+
+printTashaReport2
+  = putStrLn . printAccountReport (UserAccount "Tasha") $ nullify2
+printIlyaReport2
+  = putStrLn . printAccountReport (UserAccount "Ilya") $ nullify2
+printAlenaReport2
+  = putStrLn . printAccountReport (GroupAccount ["Dmitry", "Alena"]) $ nullify2
+printNikiReport2
+  = putStrLn . printAccountReport (UserAccount "Niki") $ nullify2
+printSergeReport2
+  = putStrLn . printAccountReport (UserAccount "Serge") $ nullify2
 
 users3 = ["Tasha", "Ilya", "Alena", "Dima", "Aigiza"]
 actions3
@@ -342,20 +391,20 @@ actions3
       -- But Alena thinks it's 442: 176.8*5/2
       PurchaseAction
       ( Purchase "Ilya" "AirBnb" 442 SplitEquallyAll )
-    , PurchaseAction (Purchase "Ilya" "Pingo Doce Óbidos"
+    , PurchaseAction (Purchase "Ilya" "Pingo Doce in Óbidos"
                       178.47   SplitEquallyAll)
     , PurchaseAction (Purchase "Ilya" "Gasoline"
                       58.83    SplitEquallyAll)
     , PurchaseAction (Purchase "Ilya" "Road tolls"
                       (2*13.8) SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya" "Pingo Doce Coimbra"
+    , PurchaseAction (Purchase "Ilya" "Pingo Doce in Coimbra"
                       41.86    SplitEquallyAll)
     , PurchaseAction
       ( Purchase "Dima" "Padaria Flor de Aveiro"
         19.45
         ( SplitEqually ["Dima", "Alena", "Tasha", "Ilya"] )
       )
-    , PurchaseAction (Purchase "Ilya" "Cafe Papa"
+    , PurchaseAction (Purchase "Ilya" "Cafe Papa in Coimbra"
                       77.5     SplitEquallyAll)
     , PurchaseAction (Purchase "Aigiza" "Cafe Trazarte in Óbidos"
                       65.4     SplitEquallyAll)
@@ -377,8 +426,8 @@ nullify3 = nullifyBalances . actionsToTransactions $ actions3
 printNullify3 :: IO ()
 printNullify3 = pPrint nullify3
 
-printAigizaReport
+printAigizaReport3
   = putStrLn $ printAccountReport (UserAccount "Aigiza") nullify3
 
-printDimaReport
+printDimaReport3
   = putStrLn $ printAccountReport (GroupAccount ["Dima", "Alena"]) nullify3
