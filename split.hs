@@ -201,14 +201,19 @@ nullifyBalances = nullifyBalances0 []
 printAccount (UserAccount user) = user
 printAccount (GroupAccount [user1, user2]) = user1 ++ " and " ++ user2
 
-verbForm (UserAccount _)  verb = verb ++ "s"
-verbForm (GroupAccount _) verb = verb
+data GramiticTime = Present | Past
+data Voice = Active | Passive
+
+verbForm (UserAccount _)  verb Present Active = verb ++ "s"
+verbForm (GroupAccount _) verb Present Active = verb
+verbForm (UserAccount _)  verb Past Passive = "was " ++ verb ++ "ed"
+verbForm (GroupAccount _) verb Past Passive = "were " ++ verb ++ "ed"
 
 printAccountOwesTo :: Account -> [Transaction] -> String
 printAccountOwesTo acc [tx]
   = printf "%s %s %s to %s"
     (printAccount acc)
-    (verbForm acc "owe")
+    (verbForm acc "owe" Present Active)
     (show . txAmount $ tx)
     (printAccount . txCreditAccount $ tx)
 
@@ -268,11 +273,11 @@ printAccountPayed acc txs
     (show . sum . map txAmount $ txs)
     (printTransactions txs)
 
-printAccountOwes :: Account -> [Transaction] -> String
-printAccountOwes acc txs
+printAccountWasPayed :: Account -> [Transaction] -> String
+printAccountWasPayed acc txs
   = printf "%s %s %s\n\n%s"
     (printAccount acc)
-    (verbForm acc "owe")
+    (verbForm acc "pay" Past Passive)
     (show . sum . map txAmount $ txs)
     (printTransactions txs)
 
@@ -282,7 +287,7 @@ printAccountReport0 acc txOwesTo txPayed txOwes
   =  printf "%s\n\n%s\n\n%s"
      (printAccountOwesTo acc txOwesTo)
      (printAccountPayed acc txPayed)
-     (printAccountOwes acc txOwes)
+     (printAccountWasPayed acc txOwes)
 
 printAccountReport acc (txNew, txOld)
   = printAccountReport0 acc
