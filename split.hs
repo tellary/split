@@ -1,10 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 
 import Data.Decimal       (Decimal)
-import Data.List          (find, group, groupBy, sort, sortBy, sortOn)
+import Data.List          (find, group, groupBy, intercalate, sort, sortBy,
+                           sortOn)
 import Data.List.Extra    (groupOn)
 import Data.Maybe         (fromJust, isJust)
 import Text.Pretty.Simple (pPrint)
+import Text.Printf        (printf)
 
 type Amount = Decimal
 type User = String
@@ -195,6 +197,93 @@ nullifyBalances0 newTxs txs
 
 nullifyBalances = nullifyBalances0 []
 
+printAccount (UserAccount user) = user
+printAccount (GroupAccount [user1, user2]) = user1 ++ " and " ++ user2
+
+verbForm (UserAccount _)  verb = verb ++ "s"
+verbForm (GroupAccount _) verb = verb
+
+printAccountOwesTo :: Account -> [Transaction] -> String
+printAccountOwesTo acc [tx]
+  = printf "%s %s %s to %s"
+    (printAccount acc)
+    (verbForm acc "owe")
+    (show . txAmount $ tx)
+    (printAccount . txCreditAccount $ tx)
+
+printAmount :: Transaction -> String
+printAmount
+      ( Transaction
+        { txAmount = amount
+        , txReason = TxReasonPurchase
+                     (Purchase _ _ purchaseAmount _)
+        }
+      )
+  | amount == purchaseAmount = show amount
+  | otherwise = printf "%s out of %s" (show amount) (show purchaseAmount)
+
+printTransaction :: Transaction -> String
+printTransaction
+      tx@( Transaction
+           { txReason = TxReasonPurchase
+                        (Purchase _ purchaseDesc purchaseAmount _)
+           }
+         )
+  = printf "%s payed %s for %s for %s"
+    (printAccount . txDebitAccount $ tx)
+    (printAmount tx)
+    (printAccount . txCreditAccount $ tx)
+    purchaseDesc
+
+printTransactions :: [Transaction] -> String
+printTransactions (tx:txs)
+  = printf "- %s%s"
+    ( printTransaction tx )
+    ( intercalate "\n"
+      . map snd
+      . scanl
+        ( \(total, result) tx ->
+            let total' = total + txAmount tx
+            in
+              ( total'
+              , printf "- %s, total: %s"
+                (printTransaction tx)
+                (show total')
+              )
+        )
+        (txAmount tx, "")
+      $ txs
+    )
+
+printAccountPayed :: Account -> [Transaction] -> String
+printAccountPayed acc txs
+  = printf "%s payed %s\n\n%s"
+    (printAccount acc)
+    (show . sum . map txAmount $ txs)
+    (printTransactions txs)
+
+printAccountOwes :: Account -> [Transaction] -> String
+printAccountOwes acc txs
+  = printf "%s %s %s\n\n%s"
+    (printAccount acc)
+    (verbForm acc "owe")
+    (show . sum . map txAmount $ txs)
+    (printTransactions txs)
+
+printAccountReport0
+  :: Account -> [Transaction] -> [Transaction] -> [Transaction] -> String
+printAccountReport0 acc txOwesTo txPayed txOwes
+  =  printf "%s\n\n%s\n\n%s"
+     (printAccountOwesTo acc txOwesTo)
+     (printAccountPayed acc txPayed)
+     (printAccountOwes acc txOwes)
+
+printAccountReport acc (txNew, txOld)
+  = printAccountReport0 acc
+    (debitAccountTransactions  acc txNew)
+    (debitAccountTransactions  acc txOld)
+    (creditAccountTransactions acc txOld)
+
 users1 = ["Serge", "Sasha", "Pasha", "Ilya", "Tasha", "Kolya", "Alena", "Dima"]
 
 actions1
@@ -257,10 +346,20 @@ actions3
     , PurchaseAction (Purchase "Ilya" "Cafe Papa"
                       77.5     SplitEquallyAll)
     , PurchaseAction (Purchase "Aigiza" "Cafe Trazarte in Óbidos"
-                      65.4   SplitEquallyAll)
+                      65.4     SplitEquallyAll)
+    , PurchaseAction (Purchase "Dima" "Large Ginjinha"
+                      17       SplitEquallyAll)
+    , PurchaseAction (Purchase "Dima" "Two small Ginjinhas"
+                      8       (SplitEqually ["Aigiza"]))
     ]
 
 nullify3 = nullifyBalances . actionsToTransactions $ actions3
 
 printNullify3 :: IO ()
 printNullify3 = pPrint nullify3
+
+printAigizaReport
+  = putStrLn $ printAccountReport (UserAccount "Aigiza") nullify3
+
+printDimaReport
+  = putStrLn $ printAccountReport (GroupAccount ["Dima", "Alena"]) nullify3
