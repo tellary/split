@@ -136,6 +136,7 @@ toTransactions
   = toTransactions actions
     (PurchaseAction
      (Purchase debitUser desc amount (SplitEqually users)))
+toTransactions _ (PaymentAction tx) = [tx]
 
 balance :: Account -> [Transaction] -> Amount
 balance account transactions
@@ -234,6 +235,11 @@ printTransaction
     (printAmount tx)
     (printAccount . txCreditAccount $ tx)
     purchaseDesc
+printTransaction tx@( Transaction { txReason = TxReasonPayment } )
+  = printf "%s payed %s to %s"
+    (printAccount . txDebitAccount $ tx)
+    (show . txAmount $ tx)
+    (printAccount . txCreditAccount $ tx)
 
 printTransactions :: [Transaction] -> String
 printTransactions (tx:txs)
@@ -327,9 +333,10 @@ nullify2 = nullifyBalances . actionsToTransactions $ actions2
 users3 = ["Tasha", "Ilya", "Alena", "Dima", "Aigiza"]
 actions3
   = Actions users3 [["Dima", "Alena"], ["Tasha", "Ilya"]]
-    [ -- USD/EUR = 0.9211 as of May 25th
+    [ -- USD/EUR = 0.9211 as of May 25th, 478.40*0.9211 = 440.65
+      -- But Alena thinks it's 442: 176.8*5/2
       PurchaseAction
-      ( Purchase "Ilya" "AirBnb" (round2 (478.40*0.9211)) SplitEquallyAll )
+      ( Purchase "Ilya" "AirBnb" 442 SplitEquallyAll )
     , PurchaseAction (Purchase "Ilya" "Pingo Doce Óbidos"
                       178.47   SplitEquallyAll)
     , PurchaseAction (Purchase "Ilya" "Gasoline"
@@ -351,6 +358,13 @@ actions3
                       17       SplitEquallyAll)
     , PurchaseAction (Purchase "Dima" "Two small Ginjinhas"
                       8       (SplitEqually ["Aigiza"]))
+    , PaymentAction
+      ( Transaction
+        ( GroupAccount ["Dima", "Alena"] )
+        ( GroupAccount ["Tasha", "Ilya"] )
+        (200 - 12.44)
+        TxReasonPayment
+      )
     ]
 
 nullify3 = nullifyBalances . actionsToTransactions $ actions3
