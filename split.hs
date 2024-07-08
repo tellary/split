@@ -203,25 +203,40 @@ printAccount (GroupAccount [user1, user2]) = user1 ++ " and " ++ user2
 
 data GramiticTime = Present | Past
 data Voice = Active | Passive
+data Negation = Affirmative | Negative
 
-verbForm (UserAccount _)  verb Present Active = verb ++ "s"
-verbForm (GroupAccount _) verb Present Active = verb
-verbForm (UserAccount _)  verb Past Passive = "was " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb Past Passive = "were " ++ verb ++ "ed"
+verbForm  acc             "owe" tense   Passive Affirmative
+  = verbForm acc "ow" tense Passive Affirmative
+verbForm (UserAccount _)  "do"  tense   Active  Negative = "doesn't"
+verbForm (GroupAccount _) "do"  tense   Active  Negative = "don't"
+verbForm (UserAccount _)  verb  Present Active  Affirmative
+  = verb ++ "s"
+verbForm (GroupAccount _) verb  Present Active  Affirmative
+  = verb
+verbForm (UserAccount _)  verb  Present Active  Negative
+  = "is " ++ verb ++ "ed"
+verbForm (GroupAccount _) verb  Present Active  Negative
+  = "are " ++ verb ++ "ed"
+verbForm (UserAccount _)  verb  Present Passive Affirmative
+  = "is " ++ verb ++ "ed"
+verbForm (GroupAccount _) verb  Present Passive Affirmative
+  = "are " ++ verb ++ "ed"
+verbForm (UserAccount _)  verb  Past    Passive Affirmative
+  = "was " ++ verb ++ "ed"
+verbForm (GroupAccount _) verb  Past    Passive Affirmative
+  = "were " ++ verb ++ "ed"
 
-printAccountOwesTo :: Account -> [Transaction] -> String
-printAccountOwesTo acc []
-  = error $ printf "%s doesn't owe anything" (printAccount acc)
-printAccountOwesTo acc [tx]
+printAccountStatusOwesTo acc _ [tx]
   = printf "%s %s %s to %s"
-    (printAccount acc)
-    (verbForm acc "owe" Present Active)
-    (show . txAmount $ tx)
-    (printAccount . txCreditAccount $ tx)
-printAccountOwesTo acc txs
-  = printf "%s %s\n\n%s"
-    (printAccount acc)
-    (verbForm acc "owe" Present Active)
+    ( printAccount acc )
+    ( verbForm acc "owe" Present Active Affirmative )
+    ( show . txAmount $ tx )
+    ( printAccount . txCreditAccount $ tx )
+printAccountStatusOwesTo acc balance txs
+  = printf "%s %s %s\n\n%s"
+    ( printAccount acc)
+    ( verbForm acc "owe" Present Active Affirmative )
+    ( show . abs $ balance )
     ( intercalate "\n"
       . map
         (\tx -> printf "- %s to %s"
@@ -230,6 +245,41 @@ printAccountOwesTo acc txs
         )
       $ txs
     )
+
+printAccountStatusOwedBy acc _ [tx]
+  = printf "%s %s %s by %s"
+    ( printAccount acc )
+    ( verbForm acc "owe" Present Passive Affirmative )
+    ( show . txAmount $ tx )
+    ( printAccount . txDebitAccount $ tx )
+printAccountStatusOwedBy acc balance txs
+  = printf "%s %s %s\n\n%s"
+    ( printAccount acc )
+    ( verbForm acc "owe" Present Passive Affirmative )
+    ( show balance )
+    ( intercalate "\n"
+      . map
+        (\tx -> printf "- %s by %s"
+                (show . txAmount $ tx)
+                (printAccount . txDebitAccount $ tx)
+        )
+      $ txs
+    )
+
+-- | Prints status of the account
+-- 
+-- - First how much the account owes or is owed
+-- - To whom or by whom
+printAccountStatus :: Account -> [Transaction] -> String
+printAccountStatus acc []
+  = printf "%s %s owe anything"
+    (printAccount acc)
+    (verbForm acc "do" Present Active Negative)
+printAccountStatus acc txs
+  | b < 0     = printAccountStatusOwesTo acc b txs
+  | otherwise = printAccountStatusOwedBy acc b txs
+  where b = balance acc txs
+
 printAmount :: Transaction -> String
 printAmount
       ( Transaction
@@ -290,29 +340,29 @@ printAccountWasPayed :: Account -> [Transaction] -> String
 printAccountWasPayed acc txs
   = printf "%s %s %s\n\n%s"
     (printAccount acc)
-    (verbForm acc "pay" Past Passive)
+    (verbForm acc "pay" Past Passive Affirmative)
     (show . sum . map txAmount $ txs)
     (printTransactions txs)
 
 printAccountReport0
   :: Account -> [Transaction] -> [Transaction] -> [Transaction] -> String
-printAccountReport0 acc [txOwesTo] [] txsWasPayed
+printAccountReport0 acc [tx] [] txsWasPayed
   = printf "%s\n\n%s"
-    (printAccountOwesTo acc [txOwesTo])
+    (printAccountStatus acc [tx])
     (printTransactions txsWasPayed)
 printAccountReport0 acc txsOwesTo [] txsWasPayed
   = printf "%s\n\n%s"
-    (printAccountOwesTo acc txsOwesTo)
+    (printAccountStatus acc txsOwesTo)
     (printAccountWasPayed acc txsWasPayed)
 printAccountReport0 acc txsOwesTo txsPayed txsWasPayed
   = printf "%s\n\n%s\n\n%s"
-    (printAccountOwesTo acc txsOwesTo)
+    (printAccountStatus acc txsOwesTo)
     (printAccountPayed acc txsPayed)
     (printAccountWasPayed acc txsWasPayed)
 
 printAccountReport acc (txNew, txOld)
   = printAccountReport0 acc
-    (debitAccountTransactions  acc txNew)
+    (accountTransactions  acc txNew)
     (debitAccountTransactions  acc txOld)
     (creditAccountTransactions acc txOld)
 
@@ -431,3 +481,6 @@ printAigizaReport3
 
 printDimaReport3
   = putStrLn $ printAccountReport (GroupAccount ["Dima", "Alena"]) nullify3
+
+printIlyaReport3
+  = putStrLn $ printAccountReport (GroupAccount ["Tasha", "Ilya"]) nullify3
