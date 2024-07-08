@@ -1,6 +1,5 @@
 ## TODO
 
-- Print transaction report for users who don't owe anything
 - Validate actions
 - Implement Web UI
 
@@ -32,6 +31,7 @@
 
 - Round to cents
 - Print transaction report per user
+- Print transaction report for users who don't owe anything
 - Implement Web UI
 
     - Decide if I want to use Miso or FRP

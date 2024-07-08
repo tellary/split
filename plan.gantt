@@ -10,11 +10,11 @@ sunday are closed
 [Round to cents] is 100% completed
 [Round to cents] starts at 2024-06-16
 [Print transaction report per user] is 100% completed
+2024-06-16 is open
 [Print transaction report per user] starts at 2024-06-16
 [Print transaction report per user] requires 2 days
 [Print transaction report for users who don't owe anything] starts at [Print transaction report per user]'s end
 [Print transaction report for users who don't owe anything] starts at 2024-07-08
-[Print transaction report for users who don't owe anything] is 0% completed
 
 -- Implement Web UI --
 
