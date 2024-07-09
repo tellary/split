@@ -2,8 +2,15 @@ let pkgs = import
   ( fetchTarball
     "https://github.com/NixOS/nixpkgs/archive/25cf937a30bf0801447f6bf544fc7486c6309234.tar.gz"
   ) { };
-    ghc = pkgs.haskell.packages.ghc943.ghcWithPackages
+  reflex-platform = import (pkgs.fetchFromGitHub {
+    owner = "reflex-frp";
+    repo = "reflex-platform";
+    rev = "v1.2.0.0";
+    sha256 = "E9Gkx0KPCvlMBQvim4F09zV/iEMg2hYh1ATcIUgXBCw=";
+  }) { };
+  ghc = reflex-platform.ghc.ghcWithPackages
     (pkgs: with pkgs; [
+      reflex-dom
       split
       hashtables
       ieee
@@ -15,4 +22,5 @@ in
   pkgs.stdenv.mkDerivation {
     name = "money-split";
     buildInputs = [ghc];
+    src = ./.;
   }
