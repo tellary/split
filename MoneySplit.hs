@@ -1,7 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 
+module MoneySplit where
+
 import Data.Decimal       (Decimal)
-import Data.List          (find, group, groupBy, intercalate, sort, sortBy,
+import Data.List          (find, group, groupBy, intercalate, nub, sort, sortBy,
                            sortOn)
 import Data.List.Extra    (groupOn)
 import Data.Maybe         (fromJust, isJust)
@@ -94,6 +96,12 @@ data Split
 
 data Action = PurchaseAction Purchase | PaymentAction Transaction deriving Show
 data Actions = Actions [User] [Group] [Action] deriving Show
+
+actionsAccounts :: Actions -> [Account]
+actionsAccounts (Actions users groups _)
+  = nub . map (userToAccount groupsByUsersVal) $ users
+  where
+    groupsByUsersVal = groupsByUsers groups
 
 actionsToTransactions :: Actions -> [Transaction]
 actionsToTransactions actions@(Actions _ _ actionsArr)
@@ -360,11 +368,24 @@ printAccountReport0 acc txsOwesTo txsPayed txsWasPayed
     (printAccountPayed acc txsPayed)
     (printAccountWasPayed acc txsWasPayed)
 
-printAccountReport acc (txNew, txOld)
+printAccountReport (txNew, txOld) acc 
   = printAccountReport0 acc
     (accountTransactions  acc txNew)
     (debitAccountTransactions  acc txOld)
     (creditAccountTransactions acc txOld)
+
+-- | Prints the full report
+--
+-- One report per each account.
+printReport txsNewOld actions
+  = intercalate divider reports
+  where
+    reports = map (printAccountReport txsNewOld) (actionsAccounts actions)
+    maxLen
+      = maximum
+        . map (\report -> maximum . map length . lines $ report)
+        $ reports
+    divider = "\n\n" ++ (take maxLen $ cycle "-") ++ "\n\n"
 
 users1 = ["Serge", "Sasha", "Pasha", "Ilya", "Tasha", "Kolya", "Alena", "Dima"]
 
@@ -394,17 +415,17 @@ printNullify1 :: IO ()
 printNullify1 = pPrint nullify1
 
 printSergeReport1
-  = putStrLn . printAccountReport (UserAccount "Serge") $ nullify1
+  = putStrLn . printAccountReport nullify1 $ UserAccount "Serge"
 printSashaReport1
-  = putStrLn . printAccountReport (GroupAccount ["Sasha", "Pasha"]) $ nullify1
+  = putStrLn . printAccountReport nullify1 $ GroupAccount ["Sasha", "Pasha"]
 printIlyaReport1
-  = putStrLn . printAccountReport (UserAccount "Ilya") $ nullify1
+  = putStrLn . printAccountReport nullify1 $ UserAccount "Ilya"
 printTashaReport1
-  = putStrLn . printAccountReport (UserAccount "Tasha") $ nullify1
+  = putStrLn . printAccountReport nullify1 $ UserAccount "Tasha"
 printKolyaReport1
-  = putStrLn . printAccountReport (UserAccount "Kolya") $ nullify1
+  = putStrLn . printAccountReport nullify1 $ UserAccount "Kolya"
 printDimaReport1
-  = putStrLn . printAccountReport (GroupAccount ["Dima", "Alena"]) $ nullify1
+  = putStrLn . printAccountReport nullify1 $ GroupAccount ["Dima", "Alena"]
 
 users2 = ["Tasha", "Ilya", "Alena", "Niki", "Dmitry", "Serge"]
 actions2
@@ -424,15 +445,15 @@ printNullify2 :: IO ()
 printNullify2 = pPrint nullify2
 
 printTashaReport2
-  = putStrLn . printAccountReport (UserAccount "Tasha") $ nullify2
+  = putStrLn . printAccountReport nullify2 $ UserAccount "Tasha"
 printIlyaReport2
-  = putStrLn . printAccountReport (UserAccount "Ilya") $ nullify2
+  = putStrLn . printAccountReport nullify2 $ UserAccount "Ilya"
 printAlenaReport2
-  = putStrLn . printAccountReport (GroupAccount ["Dmitry", "Alena"]) $ nullify2
+  = putStrLn . printAccountReport nullify2 $ (GroupAccount ["Dmitry", "Alena"])
 printNikiReport2
-  = putStrLn . printAccountReport (UserAccount "Niki") $ nullify2
+  = putStrLn . printAccountReport nullify2 $ (UserAccount "Niki")
 printSergeReport2
-  = putStrLn . printAccountReport (UserAccount "Serge") $ nullify2
+  = putStrLn . printAccountReport nullify2 $ (UserAccount "Serge")
 
 users3 = ["Tasha", "Ilya", "Alena", "Dima", "Aigiza"]
 actions3
@@ -477,10 +498,12 @@ printNullify3 :: IO ()
 printNullify3 = pPrint nullify3
 
 printAigizaReport3
-  = putStrLn $ printAccountReport (UserAccount "Aigiza") nullify3
+  = putStrLn . printAccountReport nullify3 $ UserAccount "Aigiza"
 
 printDimaReport3
-  = putStrLn $ printAccountReport (GroupAccount ["Dima", "Alena"]) nullify3
+  = putStrLn . printAccountReport nullify3 $ GroupAccount ["Dima", "Alena"]
 
 printIlyaReport3
-  = putStrLn $ printAccountReport (GroupAccount ["Tasha", "Ilya"]) nullify3
+  = putStrLn . printAccountReport nullify3 $ GroupAccount ["Tasha", "Ilya"]
+
+printReport3 = putStrLn $ printReport nullify3 actions3
