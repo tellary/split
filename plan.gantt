@@ -6,23 +6,16 @@ sunday are closed
 
 -- Core logic --
 
-[Round to cents] requires 1 day
-[Round to cents] is 100% completed
-[Round to cents] starts at 2024-06-16
-[Print transaction report per user] is 100% completed
+[Round to cents] requires 1 day and starts at 2024-06-16
+then [Print transaction report per user] starts at 2024-06-16 and requires 2 days.
 2024-06-16 is open
-[Print transaction report per user] starts at 2024-06-16
-[Print transaction report per user] requires 2 days
-[Print transaction report for users who don't owe anything] starts at [Print transaction report per user]'s end
-[Print transaction report for users who don't owe anything] starts at 2024-07-08
+then [Print transaction report for users who don't owe anything] starts at 2024-07-08
+then [Print report for all users] is 0% completed
 
 -- Implement Web UI --
 
-[Decide if I want to use Miso or FRP] is 100% completed
 [Decide if I want to use Miso or FRP] starts 2024-05-27
-[Learn an FRP framework] starts at [Decide if I want to use Miso or FRP]'s end
-[Learn an FRP framework] starts 2024-05-31
-[Learn an FRP framework] ends 2024-07-08
+then [Learn an FRP framework] starts 2024-05-31 and ends 2024-07-08
 [Learn an FRP framework] pauses on 2024-06-03
 [Learn an FRP framework] pauses on 2024-06-11
 [Learn an FRP framework] pauses on 2024-06-12
@@ -36,11 +29,8 @@ sunday are closed
 [Learn an FRP framework] pauses on 2024-06-25
 [Learn an FRP framework] pauses on 2024-07-02
 [Learn an FRP framework] pauses on 2024-07-03
-[Create unfoldable tree report] is 0% completed
-[Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end
-[Create unfoldable tree report] starts at [Decide if I want to use Miso or FRP]'s end
-[Create unfoldable tree report] is 0% completed
-[Create unfoldable tree report] requires 3 days
+[Create unfoldable tree report] is 0% completed and starts on 2024-07-09
+[Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end and is 0% completed and requires 3 days
 
 -- Core logic --
 
@@ -49,19 +39,18 @@ sunday are closed
 
 -- Implement Web UI --
 
-[Implement addition of a user in-memory] starts at [Validate actions]'s end
-[Implement addition of a user in-memory] is 0% completed
-[Implement addition of "split all" expenses in-memory] starts at [Implement addition of a user in-memory]'s end and is 0% completed
-[Implement "split equally" expenses] starts at [Implement addition of "split all" expenses in-memory]'s end and is 0% completed
-[Store expense sheet with users in browser storage] starts at [Implement "split equally" expenses]'s end and is 0% completed and requires 2 days
-[Implement user groups] starts at [Store expense sheet with users in browser storage]'s end and is 0% completed
-[Create SSL certificate for bar-code scanner to use the same method for money split] starts at [Implement user groups]'s end and is 0% completed
-[Deploy money split] starts at [Create SSL certificate for bar-code scanner to use the same method for money split]'s end and is 0% completed
-[Add user stat] starts at [Deploy money split]'s end and is 0% completed
-[Advertise among friends] starts at [Add user stat]'s end and is 0% completed
-[Update LinkedIn] starts at [Advertise among friends]'s end and is 0% completed
-[Advertise in LinkedIn] starts at [Update LinkedIn]'s end and is 0% completed
-[Add context ads] starts at [Advertise in LinkedIn]'s end and is 0% completed
+[Implement addition of a user in-memory] starts at [Validate actions]'s end and is 0% completed
+then [Implement addition of "split all" expenses in-memory] is 0% completed
+then [Implement "split equally" expenses] is 0% completed
+then [Store expense sheet with users in browser storage] is 0% completed and requires 2 days
+then [Implement user groups] is 0% completed
+then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
+then [Deploy money split] is 0% completed
+then [Add user stat] is 0% completed
+then [Advertise among friends] is 0% completed
+then [Update LinkedIn] is 0% completed
+then [Advertise in LinkedIn] is 0% completed
+then [Add context ads] is 0% completed
 
 -- Implement backend --
 
