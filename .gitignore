@@ -1,4 +1,8 @@
 /msg
 /split
+/testExpandableEl
 /*.hi
 /*.o
+/*.js_hi
+/*.js_o
+/*.jsexe/

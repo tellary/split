@@ -1,9 +1,14 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 import           Control.Monad (forM_)
 import qualified Data.Text     as T
+import           ExpandableEl  (ElState (ElCollapsed, ElExpanded), expandableLi)
 import           MoneySplit
-import           Reflex.Dom    (el, mainWidget, text, DomBuilder)
+import           Reflex.Dom    (DomBuilder, el, mainWidget, text)
 import           Text.Printf   (printf)
 
 main :: IO ()
@@ -61,6 +66,10 @@ reportAccountStatus acc txs
                 (creditAccountTransactions acc txs)
   where b = balance acc txs
 
-report actions (txNew, txOld) = do
+report actions (txNew, _) = do
   el "ul" . forM_ (actionsAccounts actions) $ \acc -> do
-    el "li" $ reportAccountStatus acc txNew
+    expandableLi $ \case
+      ElCollapsed -> reportAccountStatus acc txNew
+      ElExpanded  -> do
+        reportAccountStatus acc txNew
+        el "p" $ text "More info will be here"

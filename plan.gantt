@@ -30,6 +30,7 @@ then [Learn an FRP framework] starts 2024-05-31 and ends 2024-07-08
 [Learn an FRP framework] pauses on 2024-07-02
 [Learn an FRP framework] pauses on 2024-07-03
 then [Print report for all users] is 100% completed
+[Create ''expandableLi''] starts at [Print transaction report for users who don't owe anything]'s end
 [Create unfoldable tree report] is 0% completed and starts on 2024-07-09
 [Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end and is 0% completed and requires 3 days
 

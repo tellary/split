@@ -8,8 +8,7 @@ let pkgs = import
     rev = "v1.2.0.0";
     sha256 = "E9Gkx0KPCvlMBQvim4F09zV/iEMg2hYh1ATcIUgXBCw=";
   }) { };
-  ghc = reflex-platform.ghc.ghcWithPackages
-    (pkgs: with pkgs; [
+  deps = (pkgs: with pkgs; [
       reflex-dom
       split
       hashtables
@@ -18,9 +17,18 @@ let pkgs = import
       Decimal
       extra
     ]);
-in
-  pkgs.stdenv.mkDerivation {
+  ghc = reflex-platform.ghc.ghcWithPackages deps;
+  ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;
+in {
+  ghc = pkgs.stdenv.mkDerivation {
     name = "money-split";
     buildInputs = [ghc];
     src = ./.;
-  }
+  };
+
+  ghcjs = pkgs.stdenv.mkDerivation {
+    name = "money-split";
+    buildInputs = [ghcjs];
+    src = ./.;
+  };
+}
