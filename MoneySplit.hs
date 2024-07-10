@@ -183,6 +183,12 @@ collapseSameAccountsDirectional
 collapseSameAccounts
   = collapseTransactions transactionAccounts
 
+groupTransactionsByReason :: [Transaction] -> [(TxReason, [Transaction])]
+groupTransactionsByReason
+  = map (\grp -> (txReason . head $ grp, grp)) . groupOn txReason
+
+printSummaryBySingleReason = undefined
+
 decreaseBalance balances
   = case (asc, desc) of
       ((lowest, lowestAcc):_, (highest, highestAcc):_)
