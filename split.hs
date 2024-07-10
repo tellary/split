@@ -17,15 +17,6 @@ main = mainWidget $ do
   report actions2 nullify2
   report actions1 nullify1
 
-printAccountBalance acc txs
-  = printf "%s %s %s"
-    ( printAccount acc )
-    ( verbForm acc "owe" Present voice Affirmative )
-    ( show . abs $ b )
-  where
-    b     = balance acc txs
-    voice = if b < 0 then Active else Passive
-
 reportAccountStatusOwesTo :: DomBuilder t m => Account -> Amount -> [Transaction] -> m ()
 reportAccountStatusOwesTo acc balance [tx]
   = text . T.pack $ printAccountStatusOwesTo acc balance [tx]
