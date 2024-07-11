@@ -5,10 +5,11 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 import           Control.Monad (forM_)
+import           Data.Function ((&))
 import qualified Data.Text     as T
 import           ExpandableEl  (ElState (ElCollapsed, ElExpanded), expandableLi)
 import           MoneySplit
-import           Reflex.Dom    (DomBuilder, el, mainWidget, text)
+import           Reflex.Dom    (DomBuilder, blank, el, mainWidget, text)
 import           Text.Printf   (printf)
 
 main :: IO ()
@@ -17,7 +18,8 @@ main = mainWidget $ do
   report actions2 nullify2
   report actions1 nullify1
 
-reportAccountStatusOwesTo :: DomBuilder t m => Account -> Amount -> [Transaction] -> m ()
+reportAccountStatusOwesTo
+  :: DomBuilder t m => Account -> Amount -> [Transaction] -> m ()
 reportAccountStatusOwesTo acc balance [tx]
   = text . T.pack $ printAccountStatusOwesTo acc balance [tx]
 reportAccountStatusOwesTo acc balance txs = do
@@ -57,10 +59,20 @@ reportAccountStatus acc txs
                 (creditAccountTransactions acc txs)
   where b = balance acc txs
 
-report actions (txNew, _) = do
+reportAccountPurchases actions acc txs =
+  el "ul" . forM_ (groupTransactionsByReason txs)
+      $ \reasonAndTxs -> do
+  printSummaryBySingleReason actions acc reasonAndTxs & \case
+    Just summary -> el "li" .  text . T.pack $ summary
+    Nothing -> return ()
+
+report actions (txsNew, txsOld) = do
   el "ul" . forM_ (actionsAccounts actions) $ \acc -> do
     expandableLi $ \case
-      ElCollapsed -> reportAccountStatus acc txNew
+      ElCollapsed -> reportAccountStatus acc txsNew
       ElExpanded  -> do
-        reportAccountStatus acc txNew
-        el "p" $ text "More info will be here"
+        reportAccountStatus acc txsNew
+        el "p" $ do
+          text . T.pack . printAccount $ acc
+          el "br" blank
+          reportAccountPurchases actions acc txsOld

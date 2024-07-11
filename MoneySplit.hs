@@ -108,8 +108,19 @@ data Split
   | SplitEquallyAll
   deriving (Show, Eq, Ord)
 
+splitUsers actions SplitEquallyAll      = actionsUsers actions
+splitUsers _       (SplitEqually users) = users
+
+purchaseSplitUsers actions (Purchase { purchaseSplit = split })
+  = splitUsers actions split
+
 data Action = PurchaseAction Purchase | PaymentAction Transaction deriving Show
-data Actions = Actions [User] [Group] [Action] deriving Show
+data Actions
+  = Actions
+  { actionsUsers :: [User]
+  , actionsGroups :: [Group]
+  , actionsArr :: [Action]
+  } deriving Show
 
 actionsAccounts :: Actions -> [Account]
 actionsAccounts (Actions users groups _)
@@ -213,40 +224,62 @@ printAccountBalance acc txs
     b     = balance acc txs
     voice = if b < 0 then Active else Passive
 
-printSummaryBySingleReason :: Account -> (TxReason, [Transaction]) -> String
-printSummaryBySingleReason acc (TxReasonPayment, txs)
+printSummaryBySingleReason
+  :: Actions -> Account -> (TxReason, [Transaction]) -> Maybe String
+printSummaryBySingleReason actions  acc reasonGroup
   | b > 0
-  = capitaize $ printf "%s %s by %s"
-    ( verbForm acc "pay" Past Passive Affirmative )
-    ( show b )
-    ( printAccountList $ transactionsDebitAccounts txs )
-  | otherwise
-  = capitaize $ printf "%s %s to %s"
-    ( verbForm acc "pay" Past Active Affirmative )
-    ( show . abs $ b )
-    ( printAccountList $ transactionsCreditAccounts txs )
+  = Just $ printSummaryBySingleReasonWasPayed actions acc b reasonGroup
+  | b < 0
+  = Just $ printSummaryBySingleReasonPayed    actions acc b reasonGroup
+  | otherwise = Nothing
   where
+    txs = snd reasonGroup
     b = balance acc txs
--- printSummaryBySingleReason (GroupAccount ["Tasha","Ilya"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
--- printSummaryBySingleReason (GroupAccount ["Dima","Alena"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
-printSummaryBySingleReason acc (TxReasonPurchase purchase, txs)
-  | b > 0
-  = capitaize $ printf "%s %s out of %s for \"%s\" for %s"
+-- printSummaryBySingleReason actions3 (GroupAccount ["Tasha","Ilya"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
+-- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
+-- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
+-- printSummaryBySingleReason actions3 (UserAccount "Aigiza") (TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
+-- printSummaryBySingleReason actions1 (UserAccount "Ilya") (TxReasonPurchase (Purchase {purchaseUser = "Serge", purchaseDesc = "Salad", purchaseAmount = 14.05, purchaseSplit = SplitEqually ["Ilya"]}),[Transaction {txDebitAccount = UserAccount "Serge", txCreditAccount = UserAccount "Ilya", txAmount = 14.05, txReason = TxReasonPurchase (Purchase {purchaseUser = "Serge", purchaseDesc = "Salad", purchaseAmount = 14.05, purchaseSplit = SplitEqually ["Ilya"]})}])
+
+printSummaryBySingleReasonWasPayed _ acc balance (TxReasonPayment, txs)
+  = printf "%s %s by %s"
     ( verbForm acc "pay" Past Passive Affirmative )
-    ( show b )
-    ( show $ purchaseAmount purchase )
-    ( purchaseDesc purchase )
-    ( printAccountList (transactionsDebitAccounts txs) )
-  | otherwise
-  = capitaize $ printf "%s %s out of %s for \"%s\" for %s"
+    ( show balance )
+    ( printAccountList $ transactionsDebitAccounts txs )
+printSummaryBySingleReasonWasPayed
+      actions acc balance (TxReasonPurchase purchase, txs)
+  = case purchaseSplitUsers actions purchase of
+      [_] -> printf "%s %s for \"%s\" by %s"
+             ( verbForm acc "pay" Past Passive Affirmative )
+             ( show $ purchaseAmount purchase )
+             ( purchaseDesc purchase )
+             ( printAccountList (transactionsDebitAccounts txs) )
+      (_) -> printf "%s %s out of %s for \"%s\" by %s"
+             ( verbForm acc "pay" Past Passive Affirmative )
+             ( show balance )
+             ( show $ purchaseAmount purchase )
+             ( purchaseDesc purchase )
+             ( printAccountList (transactionsDebitAccounts txs) )
+
+printSummaryBySingleReasonPayed _ acc balance (TxReasonPayment, txs)
+  = printf "%s %s to %s"
     ( verbForm acc "pay" Past Active Affirmative )
-    ( show . abs $ b )
-    ( show $ purchaseAmount purchase )
-    ( purchaseDesc purchase )
-    ( printAccountList (transactionsCreditAccounts txs) )
-  where b = balance acc txs
--- printSummaryBySingleReason (TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
--- putStrLn $ printSummaryBySingleReason (GroupAccount ["Dima","Alena"]) (TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
+    ( show . abs $ balance )
+    ( printAccountList $ transactionsCreditAccounts txs )
+printSummaryBySingleReasonPayed
+      actions acc balance (TxReasonPurchase purchase, txs)
+  = case purchaseSplitUsers actions purchase of
+      [_] -> printf "%s %s for \"%s\" for %s"
+             ( verbForm acc "pay" Past Active Affirmative )
+             ( show $ purchaseAmount purchase )
+             ( purchaseDesc purchase )
+             ( printAccountList (transactionsCreditAccounts txs) )
+      (_) -> printf "%s %s out of %s for \"%s\" for %s"
+             ( verbForm acc "pay" Past Active Affirmative )
+             ( show . abs $ balance )
+             ( show $ purchaseAmount purchase )
+             ( purchaseDesc purchase )
+             ( printAccountList (transactionsCreditAccounts txs) )
 
 decreaseBalance balances
   = case (asc, desc) of
@@ -276,12 +309,16 @@ printAccount (GroupAccount [user1, user2]) = user1 ++ " and " ++ user2
 
 printAccountList :: [Account] -> String
 printAccountList accs
-  = printf "%s and %s"
-    (intercalate ", " $ init users)
-    (last users)
+  = case users of
+      [user] -> user
+      users  -> printf "%s and %s"
+                (intercalate ", " $ init users)
+                (last users)
   where
     users :: [String] = concat . map accountUsers $ accs
 -- printAccountList [(UserAccount "Aigiza"), (GroupAccount ["Dima", "Alena"])]
+-- printAccountList [(UserAccount "Aigiza")]
+-- printAccountList [(GroupAccount ["Dima", "Alena"])]
 
 data GramiticTime = Present | Past
 data Voice = Active | Passive
