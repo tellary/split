@@ -1,7 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -Wall #-}
+
 import Control.Monad.Fix (MonadFix)
-import ExpandableEl      (ElState (ElCollapsed, ElExpanded), expandableLi)
+import ExpandableEl      (ElState (ElCollapsed, ElExpanded),
+                          expandableContentLi, expandableLi)
 import Reflex.Dom        (DomBuilder, MonadHold, PostBuild, el, mainWidget,
                           text)
 
@@ -35,5 +38,13 @@ testWidget = do
         el "li" $ text "list 3 - 2"
         el "li" $ text "list 3 - 3"
 
+  expandableContentLi
+    ( text "Collapsed 4" )
+    ( text "Expanded 4 (click here)" )
+    ( el "ul" $ do
+        el "li" $ text "list 4 - 1"
+        el "li" $ text "list 4 - 2"
+        el "li" $ text "list 4 - 3"
+    )
 main :: IO ()
 main = mainWidget testWidget

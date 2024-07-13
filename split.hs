@@ -7,7 +7,7 @@
 import           Control.Monad (forM_)
 import           Data.Function ((&))
 import qualified Data.Text     as T
-import           ExpandableEl  (ElState (ElCollapsed, ElExpanded), expandableLi)
+import           ExpandableEl (expandableContentLi)
 import           MoneySplit
 import           Reflex.Dom    (DomBuilder, blank, el, mainWidget, text)
 import           Text.Printf   (printf)
@@ -68,11 +68,11 @@ reportAccountPurchases actions acc txs =
 
 report actions (txsNew, txsOld) = do
   el "ul" . forM_ (actionsAccounts actions) $ \acc -> do
-    expandableLi $ \case
-      ElCollapsed -> reportAccountStatus acc txsNew
-      ElExpanded  -> do
-        reportAccountStatus acc txsNew
-        el "p" $ do
+    expandableContentLi
+      ( reportAccountStatus acc txsNew )
+      ( reportAccountStatus acc txsNew )
+      ( el "p" $ do
           text . T.pack . printAccount $ acc
           el "br" blank
           reportAccountPurchases actions acc txsOld
+      )
