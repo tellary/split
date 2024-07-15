@@ -3,15 +3,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
 import           Control.Monad       (forM_)
+import           Control.Monad.Fix   (MonadFix)
 import           Control.Monad.ListM (scanM)
 import           Data.Function       ((&))
 import qualified Data.Text           as T
 import           ExpandableEl        (expandableContentLi)
 import           MoneySplit
-import           Reflex.Dom          (DomBuilder, blank, el, mainWidget, text)
+import           Reflex.Dom          (DomBuilder, MonadHold, PostBuild, blank,
+                                      el, mainWidget, text)
 import           Text.Printf         (printf)
 
 main :: IO ()
@@ -63,30 +65,51 @@ reportAccountStatus acc txs
                 (creditAccountTransactions acc txs)
   where b = balance acc txs
 
-reportAccountPurchases actions acc txs = do
-  let (firstReason:reasonsAndTxs) = groupTransactionsByReason txs
-  el "ul" $ do
-    printSummaryBySingleReason actions acc firstReason & \case
-      Just summary -> el "li" .  text . T.pack $ summary
-      Nothing -> return ()
-    _ :: [Amount] <- scanM
-      (\total reasonAndTxs -> do
-          let total' = total + (balance acc . snd $ reasonAndTxs)
-          printSummaryBySingleReason actions acc reasonAndTxs & \case
-            Just summary -> el "li" $ do
-              text . T.pack $ summary
-              text ", total: "
-              text . T.pack . show $
-                if owes
-                then total'
-                else -total'
-            Nothing -> return ()
+reportAccountSingleReasonDetails
+  :: DomBuilder t m => (TxReason, [Transaction]) -> m ()
+reportAccountSingleReasonDetails (reason, txs) = do
+  (el "p" $ text "More details")
+reportAccountSingleReason
+  :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  => Actions
+  -> Account
+  -> Bool
+  -> Amount
+  -> (TxReason, [Transaction]) -> m Amount
+reportAccountSingleReason actions acc owes total reasonGroup
+  | total ==  0  = do
+      printSummaryBySingleReason actions acc reasonGroup & \case
+        Just summary -> do
+          expandableContentLi
+            (el "li" .  text . T.pack $ summary)
+            (el "li" .  text . T.pack $ summary)
+            (reportAccountSingleReasonDetails reasonGroup)
           return total'
-      )
-      (balance acc . snd $ firstReason)
-      reasonsAndTxs
+        Nothing -> return total'
+  | otherwise = do
+      printSummaryBySingleReason actions acc reasonGroup & \case
+        Just summary -> do
+          let summaryAndTotal :: m () = do
+                text . T.pack $ summary
+                text ", total: "
+                text . T.pack . show $ if owes then total' else -total'
+          expandableContentLi
+            summaryAndTotal
+            summaryAndTotal
+            (reportAccountSingleReasonDetails reasonGroup)
+          return total'
+        Nothing -> return total'
+  where
+    total' = total + (balance acc . snd $ reasonGroup)
+
+reportAccountReasons actions acc txs = do
+  let owes = balance acc txs > 0
+  el "ul" $ do
+    _ :: [Amount] <- scanM
+      (reportAccountSingleReason actions acc owes)
+      0
+      (groupTransactionsByReason txs)
     return ()
-  where owes = balance acc txs > 0
 
 report actions (txsNew, txsOld) = do
   el "ul" . forM_ (actionsAccounts actions) $ \acc -> do
@@ -96,5 +119,5 @@ report actions (txsNew, txsOld) = do
       ( el "p" $ do
           text . T.pack . printAccount $ acc
           el "br" blank
-          reportAccountPurchases actions acc txsOld
+          reportAccountReasons actions acc txsOld
       )
