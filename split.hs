@@ -1,21 +1,25 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
-import           Control.Monad (forM_)
-import           Data.Function ((&))
-import qualified Data.Text     as T
-import           ExpandableEl (expandableContentLi)
+import           Control.Monad       (forM_)
+import           Control.Monad.ListM (scanM)
+import           Data.Function       ((&))
+import qualified Data.Text           as T
+import           ExpandableEl        (expandableContentLi)
 import           MoneySplit
-import           Reflex.Dom    (DomBuilder, blank, el, mainWidget, text)
-import           Text.Printf   (printf)
+import           Reflex.Dom          (DomBuilder, blank, el, mainWidget, text)
+import           Text.Printf         (printf)
 
 main :: IO ()
 main = mainWidget $ do
   report actions3 nullify3
+  text "------"; el "br" blank
   report actions2 nullify2
+  text "------"; el "br" blank
   report actions1 nullify1
 
 reportAccountStatusOwesTo
@@ -59,12 +63,30 @@ reportAccountStatus acc txs
                 (creditAccountTransactions acc txs)
   where b = balance acc txs
 
-reportAccountPurchases actions acc txs =
-  el "ul" . forM_ (groupTransactionsByReason txs)
-      $ \reasonAndTxs -> do
-  printSummaryBySingleReason actions acc reasonAndTxs & \case
-    Just summary -> el "li" .  text . T.pack $ summary
-    Nothing -> return ()
+reportAccountPurchases actions acc txs = do
+  let (firstReason:reasonsAndTxs) = groupTransactionsByReason txs
+  el "ul" $ do
+    printSummaryBySingleReason actions acc firstReason & \case
+      Just summary -> el "li" .  text . T.pack $ summary
+      Nothing -> return ()
+    _ :: [Amount] <- scanM
+      (\total reasonAndTxs -> do
+          let total' = total + (balance acc . snd $ reasonAndTxs)
+          printSummaryBySingleReason actions acc reasonAndTxs & \case
+            Just summary -> el "li" $ do
+              text . T.pack $ summary
+              text ", total: "
+              text . T.pack . show $
+                if owes
+                then total'
+                else -total'
+            Nothing -> return ()
+          return total'
+      )
+      (balance acc . snd $ firstReason)
+      reasonsAndTxs
+    return ()
+  where owes = balance acc txs > 0
 
 report actions (txsNew, txsOld) = do
   el "ul" . forM_ (actionsAccounts actions) $ \acc -> do

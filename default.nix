@@ -16,6 +16,7 @@ let pkgs = import
       pretty-simple
       Decimal
       extra
+      monadlist
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
   ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;
