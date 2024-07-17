@@ -11,8 +11,6 @@ then [Print transaction report per user] starts at 2024-06-16 and requires 2 day
 2024-06-16 is open
 then [Print transaction report for users who don't owe anything] starts at 2024-07-08
 then [Print report for all users] requires 1 day
-[Serge payed for "Salad" split equally among Ilya: 14.05 for Ilya] is 0% completed and starts at 2024-07-16
-then [Add (collapsed)/(expanded) link] is 0% completed
 
 -- Implement Web UI --
 
@@ -34,6 +32,8 @@ then [Learn an FRP framework] starts 2024-05-31 and ends 2024-07-08
 then [Print report for all users] is 100% completed
 [Create ''expandableLi''] starts at [Print transaction report for users who don't owe anything]'s end
 then [Make expandable element react only on some sub-element] requires 2 days and starts on 2024-07-11
+[Add (collapsed)/(expanded) link] is 100% completed and starts at 2024-07-16
+then [Serge payed for "Salad" split equally among Ilya: 14.05 for Ilya] is 0% completed
 [Create unfoldable tree report] is 0% completed and starts on 2024-07-09
 [Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end and is 0% completed and ends on 2024-07-17
 

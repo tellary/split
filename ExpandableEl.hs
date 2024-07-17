@@ -11,7 +11,7 @@ module ExpandableEl where
 import Control.Monad.Fix (MonadFix)
 import Data.Function     ((&))
 import Reflex.Dom        (DomBuilder, Event, EventName (Click), MonadHold,
-                          PostBuild, accum, domEvent, el', switchDyn,
+                          PostBuild, accum, domEvent, el', switchDyn, text,
                           widgetHold)
 
 data ElState = ElCollapsed | ElExpanded deriving (Eq, Show)
@@ -38,9 +38,12 @@ expandableContent tagName collapsed expanded content = do
       expandable $ \case
         ElCollapsed -> do
           collapsed
+          text " (expand)"
           return $ domEvent Click containerEl
         ElExpanded -> do
-          (spanEl, _) <- el' "span" $ expanded
+          (spanEl, _) <- el' "span" $ do
+            expanded
+            text " (collapse)"
           content
           return $ domEvent Click spanEl
   return ()
