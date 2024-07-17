@@ -106,6 +106,14 @@ reportAccountSingleReasonDetails _ (reason, _) = do
 reportAccountSingleReasonWithSummary _ summary (TxReasonPayment, _)
   = (el "li" .  text . T.pack $ summary)
 reportAccountSingleReasonWithSummary
+      _ summary
+      ( TxReasonPurchase
+        ( Purchase { purchaseSplit = SplitEqually [_] } )
+        ,
+        _
+      )
+  = (el "li" .  text . T.pack $ summary)
+reportAccountSingleReasonWithSummary
       actions summary reasonGroup@(TxReasonPurchase _, _)
   = expandableContentLi
     (text . T.pack $ summary)
