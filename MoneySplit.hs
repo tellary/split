@@ -122,11 +122,14 @@ data Actions
   , actionsArr :: [Action]
   } deriving Show
 
-actionsAccounts :: Actions -> [Account]
-actionsAccounts (Actions users groups _)
+usersToAccounts :: Actions -> [User] -> [Account]
+usersToAccounts (Actions _ groups _) users
   = nub . map (userToAccount groupsByUsersVal) $ users
   where
     groupsByUsersVal = groupsByUsers groups
+
+actionsAccounts :: Actions -> [Account]
+actionsAccounts actions@(Actions users _ _) = usersToAccounts actions users
 
 actionsToTransactions :: Actions -> [Transaction]
 actionsToTransactions actions@(Actions _ _ actionsArr)
@@ -307,13 +310,17 @@ nullifyBalances = nullifyBalances0 []
 printAccount (UserAccount user) = user
 printAccount (GroupAccount [user1, user2]) = user1 ++ " and " ++ user2
 
-printAccountList :: [Account] -> String
-printAccountList accs
+printUsersList :: [User] -> String
+printUsersList users
   = case users of
       [user] -> user
       users  -> printf "%s and %s"
                 (intercalate ", " $ init users)
                 (last users)
+
+printAccountList :: [Account] -> String
+printAccountList accs
+  = printUsersList users
   where
     users :: [String] = concat . map accountUsers $ accs
 -- printAccountList [(UserAccount "Aigiza"), (GroupAccount ["Dima", "Alena"])]

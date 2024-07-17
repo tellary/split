@@ -66,9 +66,50 @@ reportAccountStatus acc txs
   where b = balance acc txs
 
 reportAccountSingleReasonDetails
-  :: DomBuilder t m => (TxReason, [Transaction]) -> m ()
-reportAccountSingleReasonDetails (reason, txs) = do
-  (el "p" $ text "More details")
+  :: DomBuilder t m => Actions -> (TxReason, [Transaction]) -> m ()
+reportAccountSingleReasonDetails
+      actions@( Actions _ groups _ )
+      ( TxReasonPurchase
+        ( Purchase
+          { purchaseUser = purchaseUser
+          , purchaseDesc = purchaseDesc
+          , purchaseAmount = purchaseAmount
+          , purchaseSplit = SplitEqually users
+          }
+        )
+      , txs) = do
+  el "p" $ do
+    text . T.pack
+      . printAccountList
+      . (\acc -> [acc])
+      . userToAccount groupsByUsersVal
+      $ purchaseUser
+    text " payed for \""
+    text . T.pack $ purchaseDesc
+    text "\" split equally:"
+    el "ul" . forM_ (usersToAccounts actions users) $ \acc -> do
+      el "li" $ do
+        let amount = if purchaseUser `elem` accountUsers acc
+                     then purchaseAmount + (balance acc $ txs)
+                     else balance acc $ txs
+        text . T.pack . show $ amount
+        text " for "
+        text . T.pack . printAccountList $ [acc]
+  where groupsByUsersVal = groupsByUsers groups
+reportAccountSingleReasonDetails _ (reason, _) = do
+  el "p" $ do
+    text "More details TBD, tx group reason: "
+    text . T.pack . show $ reason
+
+reportAccountSingleReasonWithSummary _ summary (TxReasonPayment, _)
+  = (el "li" .  text . T.pack $ summary)
+reportAccountSingleReasonWithSummary
+      actions summary reasonGroup@(TxReasonPurchase _, _)
+  = expandableContentLi
+    (text . T.pack $ summary)
+    (text . T.pack $ summary)
+    (reportAccountSingleReasonDetails actions reasonGroup)
+
 reportAccountSingleReason
   :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => Actions
@@ -80,23 +121,19 @@ reportAccountSingleReason actions acc owes total reasonGroup
   | total ==  0  = do
       printSummaryBySingleReason actions acc reasonGroup & \case
         Just summary -> do
-          expandableContentLi
-            (el "li" .  text . T.pack $ summary)
-            (el "li" .  text . T.pack $ summary)
-            (reportAccountSingleReasonDetails reasonGroup)
+          reportAccountSingleReasonWithSummary
+            actions summary reasonGroup
           return total'
         Nothing -> return total'
   | otherwise = do
       printSummaryBySingleReason actions acc reasonGroup & \case
         Just summary -> do
-          let summaryAndTotal :: m () = do
-                text . T.pack $ summary
-                text ", total: "
-                text . T.pack . show $ if owes then total' else -total'
-          expandableContentLi
-            summaryAndTotal
-            summaryAndTotal
-            (reportAccountSingleReasonDetails reasonGroup)
+          let summaryAndTotal
+                = summary
+                  ++ ", total: "
+                  ++ show (if owes then total' else -total')
+          reportAccountSingleReasonWithSummary
+            actions summaryAndTotal reasonGroup
           return total'
         Nothing -> return total'
   where
