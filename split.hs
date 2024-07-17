@@ -86,7 +86,9 @@ reportAccountSingleReasonDetails
       . (\acc -> [acc])
       . userToAccount groupsByUsersVal
       $ purchaseUser
-    text " payed for \""
+    text " payed "
+    text . T.pack . show $ purchaseAmount
+    text " for \""
     text . T.pack $ purchaseDesc
     text "\" split equally:"
     el "ul" . forM_ (usersToAccounts actions users) $ \acc -> do
