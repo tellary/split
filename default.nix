@@ -17,6 +17,7 @@ let pkgs = import
       Decimal
       extra
       monadlist
+      file-embed
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
   ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;

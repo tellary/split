@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -8,16 +9,17 @@
 import           Control.Monad       (forM_)
 import           Control.Monad.Fix   (MonadFix)
 import           Control.Monad.ListM (scanM)
+import           Data.FileEmbed      (embedFile)
 import           Data.Function       ((&))
 import qualified Data.Text           as T
 import           ExpandableEl        (expandableContentLi)
 import           MoneySplit
 import           Reflex.Dom          (DomBuilder, MonadHold, PostBuild, blank,
-                                      el, mainWidget, text)
+                                      el, mainWidgetWithCss, text)
 import           Text.Printf         (printf)
 
 main :: IO ()
-main = mainWidget $ do
+main = mainWidgetWithCss $(embedFile "split.css") $ do
   report actions3 nullify3
   text "------"; el "br" blank
   report actions2 nullify2
