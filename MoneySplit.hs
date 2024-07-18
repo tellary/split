@@ -1,11 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wno-missing-signatures -Wno-name-shadowing #-}
 module MoneySplit where
 
 import Data.Char          (toUpper)
 import Data.Decimal       (Decimal)
-import Data.List          (find, group, groupBy, intercalate, nub, sort, sortBy,
-                           sortOn)
+import Data.List          (find, group, intercalate, nub, sort, sortBy, sortOn)
 import Data.List.Extra    (groupOn)
 import Data.Maybe         (fromJust, isJust)
 import Text.Pretty.Simple (pPrint)
@@ -24,7 +25,7 @@ accountUsers (UserAccount user  ) = [user]
 accountUsers (GroupAccount group) = group
 
 round2 :: Decimal -> Decimal
-round2 d = fromIntegral (round (d*100))/100
+round2 d = fromIntegral (round (d*100) :: Integer) / 100
 
 divAmounts :: Decimal -> Int -> [Decimal]
 divAmounts d n = loop d n []
@@ -96,20 +97,33 @@ sameAccountsDirectional tx1 tx2
 sameAccounts :: Transaction -> Transaction -> Bool
 sameAccounts tx1 tx2 = transactionAccounts tx1 == transactionAccounts tx2
 
+data SplitItem
+  = SplitItem
+  { splitItemUser   :: User
+  , splitItemDesc   :: Desc
+  , splitItemAmount :: Amount
+  } deriving (Show, Eq, Ord)
+
 data Purchase
   = Purchase
-  { purchaseUser :: User
-  , purchaseDesc :: Desc
+  { purchaseUser   :: User
+  , purchaseDesc   :: Desc
   , purchaseAmount :: Amount
-  , purchaseSplit :: Split
+  , purchaseSplit  :: Split
   } deriving (Show, Eq, Ord)
 data Split
   = SplitEqually [User]
   | SplitEquallyAll
+  -- TODO: Validate ItemizedSplit sum == purchaseAmount
+  | ItemizedSplit [SplitItem]
   deriving (Show, Eq, Ord)
 
-splitUsers actions SplitEquallyAll      = actionsUsers actions
-splitUsers _       (SplitEqually users) = users
+maybeSplitItems (ItemizedSplit items) = Just items
+maybeSplitItems  _                    = Nothing
+
+splitUsers actions  SplitEquallyAll      = actionsUsers actions
+splitUsers _       (SplitEqually users ) = users
+splitUsers _       (ItemizedSplit items) = nub . map splitItemUser $ items
 
 purchaseSplitUsers actions (Purchase { purchaseSplit = split })
   = splitUsers actions split
@@ -172,6 +186,24 @@ toTransactions
   = toTransactions actions
     (PurchaseAction
      (Purchase debitUser desc amount (SplitEqually users)))
+toTransactions
+  (Actions _ groups _)
+  (PurchaseAction
+    purchase@(Purchase debitUser _ _ (ItemizedSplit splitItems)))
+  = filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
+    . map userSplitItemsToTx
+    . map (\grp -> (splitItemUser . head $ grp, grp))
+    . groupOn splitItemUser
+    $ splitItems
+  where
+    userSplitItemsToTx :: (User, [SplitItem]) -> Transaction
+    userSplitItemsToTx (creditUser, userSplitItems)
+      = Transaction
+        (userToAccount groupsByUsersVal debitUser)
+        (userToAccount groupsByUsersVal creditUser)
+        (sum . map splitItemAmount $ userSplitItems)
+        (TxReasonPurchase purchase)
+    groupsByUsersVal = groupsByUsers groups
 toTransactions _ (PaymentAction tx) = [tx]
 
 balance :: Account -> [Transaction] -> Amount
@@ -291,6 +323,7 @@ decreaseBalance balances
           -> Transaction highestAcc lowestAcc  highest     TxReasonPayment
         | otherwise
           -> Transaction highestAcc lowestAcc (abs lowest) TxReasonPayment
+      _ -> error "'balances' should never be '[]' in 'decreaseBalance'"
   where
     asc  = sort balances
     desc = sortBy (flip compare) balances
@@ -308,7 +341,7 @@ nullifyBalances0 newTxs txs
 nullifyBalances = nullifyBalances0 []
 
 printAccount (UserAccount user) = user
-printAccount (GroupAccount [user1, user2]) = user1 ++ " and " ++ user2
+printAccount (GroupAccount users) = printUsersList users
 
 printUsersList :: [User] -> String
 printUsersList users
@@ -327,14 +360,14 @@ printAccountList accs
 -- printAccountList [(UserAccount "Aigiza")]
 -- printAccountList [(GroupAccount ["Dima", "Alena"])]
 
-data GramiticTime = Present | Past
-data Voice = Active | Passive
-data Negation = Affirmative | Negative
+data GramiticTime = Present | Past deriving Show
+data Voice = Active | Passive deriving Show
+data Negation = Affirmative | Negative deriving Show
 
 verbForm  acc             "owe" tense   Passive Affirmative
   = verbForm acc "ow" tense Passive Affirmative
-verbForm (UserAccount _)  "do"  tense   Active  Negative = "doesn't"
-verbForm (GroupAccount _) "do"  tense   Active  Negative = "don't"
+verbForm (UserAccount _)  "do"  _       Active  Negative = "doesn't"
+verbForm (GroupAccount _) "do"  _       Active  Negative = "don't"
 verbForm (UserAccount _)  verb  Present Active  Affirmative
   = verb ++ "s"
 verbForm (GroupAccount _) verb  Present Active  Affirmative
@@ -355,6 +388,10 @@ verbForm (UserAccount _)  verb  Past    Passive Affirmative
   = "was " ++ verb ++ "ed"
 verbForm (GroupAccount _) verb  Past    Passive Affirmative
   = "were " ++ verb ++ "ed"
+verbForm _ verb tense active affirmative
+  = error
+    $ printf "Verb form is not defined for verb '%s' in %s, %s, %s"
+      verb (show tense) (show active) (show affirmative)
 
 printAccountStatusOwesTo acc _ [tx]
   = printf "%s %s %s to %s"
@@ -420,12 +457,19 @@ printAmount
       )
   | amount == purchaseAmount = show amount
   | otherwise = printf "%s out of %s" (show amount) (show purchaseAmount)
+printAmount
+      ( Transaction
+        { txAmount = amount
+        , txReason = TxReasonPayment
+        }
+      )
+  = show amount
 
 printTransaction :: Transaction -> String
 printTransaction
       tx@( Transaction
            { txReason = TxReasonPurchase
-                        (Purchase _ purchaseDesc purchaseAmount _)
+                        (Purchase _ purchaseDesc _ _)
            }
          )
   = printf "%s payed %s for %s for %s"
@@ -446,7 +490,7 @@ printTransactions (tx:txs)
     ( intercalate "\n"
       . map snd
       . scanl
-        ( \(total, result) tx ->
+        ( \(total, _) tx ->
             let total' = total + txAmount tx
             in
               ( total'
@@ -458,6 +502,8 @@ printTransactions (tx:txs)
         (txAmount tx, "")
       $ txs
     )
+printTransactions []
+  = error "'printTransactions' shouldn't be called with '[]'"
 
 printAccountPayed :: Account -> [Transaction] -> String
 printAccountPayed acc txs
@@ -476,14 +522,25 @@ printAccountWasPayed acc txs
 
 printAccountReport0
   :: Account -> [Transaction] -> [Transaction] -> [Transaction] -> String
-printAccountReport0 acc [tx] [] txsWasPayed
+printAccountReport0 acc _ [] []
+  = printf "%s didn't make any transactions"
+    (printAccount acc)
+printAccountReport0 acc txsOwesTo@[_] [] txsWasPayed
   = printf "%s\n\n%s"
-    (printAccountStatus acc [tx])
+    (printAccountStatus acc txsOwesTo)
     (printTransactions txsWasPayed)
+printAccountReport0 acc txsOwesTo@[_] txsPayed []
+  = printf "%s\n\n%s"
+    (printAccountStatus acc txsOwesTo)
+    (printTransactions txsPayed)
 printAccountReport0 acc txsOwesTo [] txsWasPayed
   = printf "%s\n\n%s"
     (printAccountStatus acc txsOwesTo)
     (printAccountWasPayed acc txsWasPayed)
+printAccountReport0 acc txsOwesTo txsPayed []
+  = printf "%s\n\n%s"
+    (printAccountStatus acc txsOwesTo)
+    (printAccountWasPayed acc txsPayed)
 printAccountReport0 acc txsOwesTo txsPayed txsWasPayed
   = printf "%s\n\n%s\n\n%s"
     (printAccountStatus acc txsOwesTo)
@@ -629,3 +686,32 @@ printIlyaReport3
   = putStrLn . printAccountReport nullify3 $ GroupAccount ["Tasha", "Ilya"]
 
 printReport3 = putStrLn $ printReport nullify3 actions3
+
+users4 = ["Tasha", "Ilya", "Alena", "Dima"]
+berriesSplit4
+  = ItemizedSplit
+    [ SplitItem "Tasha" "1kg blackberry" 6
+    , SplitItem "Tasha" "1kg strawberry" 4
+    , SplitItem "Tasha" "1kg blueberry"  9
+    , SplitItem "Ilya"  "1kg blackberry" 6
+    , SplitItem "Ilya"  "1kg strawberry" 4
+    , SplitItem "Ilya"  "1kg blueberry"  9
+    , SplitItem "Ilya"  "1kg raspberry"  6
+    , SplitItem "Alena" "1kg blackberry" 6
+    , SplitItem "Alena" "1kg strawberry" 4
+    , SplitItem "Alena" "1kg blueberry"  9
+    ]
+
+actions4
+  = Actions users4 [["Dima", "Alena"], ["Tasha", "Ilya"]]
+    [ PurchaseAction (Purchase "Ilya" "PILS" 181 SplitEquallyAll )
+    , PurchaseAction
+      ( Purchase "Ilya" "Berries" 63 berriesSplit4 )
+    ]
+
+nullify4 = nullifyBalances . actionsToTransactions $ actions4
+
+printNullify4 :: IO ()
+printNullify4 = pPrint nullify4
+
+printReport4 = putStrLn $ printReport nullify4 actions4

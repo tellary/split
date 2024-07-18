@@ -11,6 +11,7 @@ then [Print transaction report per user] starts at 2024-06-16 and requires 2 day
 2024-06-16 is open
 then [Print transaction report for users who don't owe anything] starts at 2024-07-08
 then [Print report for all users] requires 1 day
+[Itemized split logic] starts at 2024-07-18 and is 100% completed
 
 -- Implement Web UI --
 
@@ -34,13 +35,14 @@ then [Print report for all users] is 100% completed
 then [Make expandable element react only on some sub-element] requires 2 days and starts on 2024-07-11
 [Add (collapsed)/(expanded) link] is 100% completed and starts at 2024-07-17
 [Don't show details of transactions split equally among 1 user] starts at 2024-07-17 and is 100% completed
-[Create unfoldable tree report] is 0% completed and starts on 2024-07-09
-[Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end and is 0% completed and ends on 2024-07-17
-
+[Create unfoldable tree report] is 100% completed and starts on 2024-07-09
+[Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end and ends on 2024-07-17 and pauses on 2024-07-12
+[Itemized split report] is 0% completed and starts at [Itemized split logic]'s end
 -- Core logic --
 
 [Validate actions] is 0% completed
-[Validate actions] starts at [Create unfoldable tree report]'s end
+[Validate actions] starts at [Itemized split report]'s end
+
 -- Implement Web UI --
 
 [Implement addition of a user in-memory] starts at [Validate actions]'s end and is 0% completed
@@ -51,6 +53,8 @@ then [Implement user groups] is 0% completed
 then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
 then [Deploy money split] is 0% completed
 then [Add user stat] is 0% completed
+then [Buffer UI ready] requires 6 days and is 0% completed
+[UI completed] happens on 2024-08-12
 then [Advertise among friends] is 0% completed
 then [Update LinkedIn] is 0% completed
 then [Advertise in LinkedIn] is 0% completed
@@ -65,5 +69,6 @@ then [Add context ads] is 0% completed
 [Implement addition of users to the workspace] starts at [Restrict workspace editing to owner]'s end and is 0% completed
 [Allow workpsace editing to users in the workspace] starts at [Implement addition of users to the workspace]'s end and is 0% completed
 [Implement `Actions` merge] starts at [Allow workpsace editing to users in the workspace]'s end and is 0% completed
-
+then [Buffer backend ready] is 0% completed and requires 14 days
+[Backend ready] happens on 2024-09-16
 @endgantt
