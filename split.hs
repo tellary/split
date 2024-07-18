@@ -102,6 +102,46 @@ reportAccountSingleReasonDetails
         text " for "
         text . T.pack . printAccountList $ [acc]
   where groupsByUsersVal = groupsByUsers groups
+reportAccountSingleReasonDetails
+      actions@( Actions _ groups _ )
+      ( TxReasonPurchase
+        ( Purchase
+          { purchaseUser = purchaseUser
+          , purchaseDesc = purchaseDesc
+          , purchaseAmount = purchaseAmount
+          , purchaseSplit = ItemizedSplit splitItems
+          }
+        )
+      , _) = do
+  el "p" $ do
+    text . T.pack
+      . printAccountList
+      . (\acc -> [acc])
+      . userToAccount groupsByUsersVal
+      $ purchaseUser
+    text " payed "
+    text . T.pack . show $ purchaseAmount
+    text " for \""
+    text . T.pack $ purchaseDesc
+    text "\" split as follows:"
+    el "ul"
+      . forM_
+        (usersToAccounts actions . splitItemsUsers $ splitItems)
+      $ \acc -> do
+        el "li" $ do
+          text . T.pack . printAccount $ acc
+          text " -- "
+          text . T.pack . show
+            . sum . map splitItemAmount . splitItemsForAccount splitItems $ acc
+          text ":"
+          el "ul" . forM_ (splitItemsForAccount splitItems acc) $ \item -> do
+            el "li" $ do
+              text . T.pack . splitItemUser $ item
+              text ", "
+              text . T.pack . splitItemDesc $ item
+              text " -- "
+              text . T.pack . show . splitItemAmount $ item
+  where groupsByUsersVal = groupsByUsers groups
 reportAccountSingleReasonDetails _ (reason, _) = do
   el "p" $ do
     text "More details TBD, tx group reason: "

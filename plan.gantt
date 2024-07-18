@@ -37,11 +37,15 @@ then [Make expandable element react only on some sub-element] requires 2 days an
 [Don't show details of transactions split equally among 1 user] starts at 2024-07-17 and is 100% completed
 [Create unfoldable tree report] is 100% completed and starts on 2024-07-09
 [Create unfoldable tree report] starts at [Print transaction report for users who don't owe anything]'s end and ends on 2024-07-17 and pauses on 2024-07-12
-[Itemized split report] is 0% completed and starts at [Itemized split logic]'s end
+[Itemized split report] starts on 2024-07-18
+[Itemized split report] is 100% completed
+then [Publish report to S3] is 0% completed
+then [Use 'mdash' HTML entity] is 0% completed
+
 -- Core logic --
 
 [Validate actions] is 0% completed
-[Validate actions] starts at [Itemized split report]'s end
+[Validate actions] starts at [Use 'mdash' HTML entity]'s end
 
 -- Implement Web UI --
 

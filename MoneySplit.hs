@@ -121,9 +121,15 @@ data Split
 maybeSplitItems (ItemizedSplit items) = Just items
 maybeSplitItems  _                    = Nothing
 
+splitItemsUsers = nub . map splitItemUser
+
+splitItemsForAccount :: [SplitItem] -> Account -> [SplitItem]
+splitItemsForAccount itemizedSplits acc
+  = filter (\item -> splitItemUser item `elem` accountUsers acc) itemizedSplits
+
 splitUsers actions  SplitEquallyAll      = actionsUsers actions
 splitUsers _       (SplitEqually users ) = users
-splitUsers _       (ItemizedSplit items) = nub . map splitItemUser $ items
+splitUsers _       (ItemizedSplit items) = splitItemsUsers $ items
 
 purchaseSplitUsers actions (Purchase { purchaseSplit = split })
   = splitUsers actions split
@@ -340,6 +346,7 @@ nullifyBalances0 newTxs txs
 
 nullifyBalances = nullifyBalances0 []
 
+printAccount :: Account -> String
 printAccount (UserAccount user) = user
 printAccount (GroupAccount users) = printUsersList users
 
