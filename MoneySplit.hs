@@ -714,6 +714,22 @@ actions4
     [ PurchaseAction (Purchase "Ilya" "PILS" 181 SplitEquallyAll )
     , PurchaseAction
       ( Purchase "Ilya" "Berries" 63 berriesSplit4 )
+    , PurchaseAction
+      ( Purchase "Dima" "Andrey Sakhov, MB Way on 15-07-2024" 140
+        (SplitEqually ["Ilya"])
+      )
+    , PurchaseAction
+      ( Purchase "Dima" "W Padel, MB Way on 04-07-2024" 31
+        (SplitEqually ["Ilya"])
+      )
+    , PurchaseAction
+      ( Purchase "Alena" "Berries in June" 9.5
+        ( ItemizedSplit
+          [ SplitItem "Ilya" "1kg strawberry" 3.5
+          , SplitItem "Ilya" "1kg raspberry" 6
+          ]
+        )
+      )
     ]
 
 nullify4 = nullifyBalances . actionsToTransactions $ actions4
