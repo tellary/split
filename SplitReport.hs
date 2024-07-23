@@ -82,6 +82,28 @@ reportAccountStatus acc txs
                 (creditAccountTransactions acc txs)
   where b = balance acc txs
 
+reportAccountSplitItems splitItems acc = do
+  el "ul" . forM_ (splitItemsForAccount splitItems acc) $ \item -> do
+    el "li" $ do
+      text . T.pack . splitItemUser $ item
+      text ", "
+      text . T.pack . splitItemDesc $ item
+      text " -- "
+      text . T.pack . show . splitItemAmount $ item
+
+reportSplitItemsList actions splitItems  = do
+  el "ul"
+    . forM_
+      (usersToAccounts actions . splitItemsUsers $ splitItems)
+    $ \acc -> do
+      el "li" $ do
+        text . T.pack . printAccount $ acc
+        text " -- "
+        text . T.pack . show
+          . sum . map splitItemAmount . splitItemsForAccount splitItems $ acc
+        text ":"
+        reportAccountSplitItems splitItems acc
+
 reportAccountSingleReasonDetails
   :: DomBuilder t m => Actions -> (TxReason, [Transaction]) -> m ()
 reportAccountSingleReasonDetails
@@ -125,36 +147,25 @@ reportAccountSingleReasonDetails
           , purchaseSplit = ItemizedSplit splitItems
           }
         )
-      , _) = do
-  el "p" $ do
-    text . T.pack
-      . printAccountList
-      . (\acc -> [acc])
-      . userToAccount groupsByUsersVal
-      $ purchaseUser
-    text " payed "
-    text . T.pack . show $ purchaseAmount
-    text " for \""
-    text . T.pack $ purchaseDesc
-    text "\" split as follows:"
-    el "ul"
-      . forM_
-        (usersToAccounts actions . splitItemsUsers $ splitItems)
-      $ \acc -> do
-        el "li" $ do
-          text . T.pack . printAccount $ acc
-          text " -- "
-          text . T.pack . show
-            . sum . map splitItemAmount . splitItemsForAccount splitItems $ acc
-          text ":"
-          el "ul" . forM_ (splitItemsForAccount splitItems acc) $ \item -> do
-            el "li" $ do
-              text . T.pack . splitItemUser $ item
-              text ", "
-              text . T.pack . splitItemDesc $ item
-              text " -- "
-              text . T.pack . show . splitItemAmount $ item
-  where groupsByUsersVal = groupsByUsers groups
+      , _)
+  = case accounts of
+      [acc] -> reportAccountSplitItems splitItems acc
+      (_:_:_) -> el "p" $ do
+        text . T.pack
+          . printAccountList
+          . (\acc -> [acc])
+          . userToAccount groupsByUsersVal
+          $ purchaseUser
+        text " payed "
+        text . T.pack . show $ purchaseAmount
+        text " for \""
+        text . T.pack $ purchaseDesc
+        text "\" split as follows:"
+        reportSplitItemsList actions splitItems
+      [] -> error "'ItemizedSplit' should split amoung at least 1 account"
+  where
+    groupsByUsersVal = groupsByUsers groups
+    accounts = usersToAccounts actions . splitItemsUsers $ splitItems
 reportAccountSingleReasonDetails _ (reason, _) = do
   el "p" $ do
     text "More details TBD, tx group reason: "
