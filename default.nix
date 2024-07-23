@@ -32,5 +32,17 @@ in {
     name = "money-split";
     buildInputs = [ghcjs];
     src = ./.;
+    phases = [ "unpackPhase" "buildPhase" "installPhase" "postInstall" ];
+    unpackPhase = ''
+      cp $src/*.hs $src/split.css $src/publish_report.sh $src/website.json .'';
+    buildPhase = ''
+      ghcjs berries.hs
+    '';
+    installPhase = ''
+      mkdir $out/
+      cp -r berries.jsexe $out/
+      cp publish_report.sh website.json $out/
+    '';
+    postInstall = "cp $src/html/* $out/berries.jsexe/";
   };
 }

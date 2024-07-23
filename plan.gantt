@@ -41,10 +41,11 @@ then [Make expandable element react only on some sub-element] requires 2 days an
 [Itemized split report] is 100% completed
 [Publish report to S3] is 100% completed and starts on 2024-07-18
 then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% completed and starts on 2024-07-23
-["Loading" spinner] is 0% completed and starts on 2024-07-23
+["Loading" spinner] is 100% completed and starts on 2024-07-23
 then [Implement addition of a user in-memory] is 0% completed
 then [Implement addition of "split all" expenses in-memory] is 0% completed
 then [Implement "split equally" expenses] is 0% completed
+then [Add running total in itemized split report] is 0% completed
 then [Use 'mdash' HTML entity] is 0% completed
 
 -- Core logic --
