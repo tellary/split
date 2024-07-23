@@ -2,6 +2,7 @@
 /split
 /testExpandableEl
 /berries
+/allReports
 /*.hi
 /*.o
 /*.js_hi
