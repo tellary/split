@@ -69,8 +69,7 @@ validInput submitEvent validation = do
   errorOnSubmitOrChange <-
     holdDyn ""
     ( tagPromptlyDyn error
-      ( leftmost [() <$ submitEvent, () <$ updated inputValue]
-      )
+      ( leftmost [() <$ submitEvent, () <$ updated inputValue] )
     )
   text " "
   dynText errorOnSubmitOrChange
@@ -89,15 +88,22 @@ addSplitAllPurchase
   => m (Event t Purchase)
 addSplitAllPurchase = do
   el "h2" $ text "Add purchase"
-  el "br" blank
   text "User: "
-  user <- value <$> inputElement def
-  el "br" blank
-  text "Description: "
-  desc <- value <$> inputElement def
-  el "br" blank
-  text "Amount: "
   rec
+    user <- validInput addEv $ \txt ->
+      let txt' = T.strip txt
+      in if T.null txt'
+         then Left "No user provided"
+         else Right txt'
+    el "br" blank
+    text "Description: "
+    desc <- validInput addEv $ \txt ->
+      let txt' = T.strip txt
+      in if T.null txt'
+         then Left "No description provided"
+         else Right txt'
+    el "br" blank
+    text "Amount: "
     amount <- validInput addEv $ \txt ->
       maybe
       (Left $ "Failed to read amount: " `T.append` txt) Right
@@ -106,11 +112,11 @@ addSplitAllPurchase = do
     addEv <- button "Add purchase"
   let purchase
         = Purchase
-        <$> (ExceptT . fmap (Right . T.unpack) $ user)
-        <*> (ExceptT . fmap (Right . T.unpack) $ desc)
+        <$> fmap (T.unpack) user
+        <*> fmap (T.unpack) desc
         <*> amount
         <*> pure SplitEquallyAll
-  tagOnSubmit purchase $ addEv
+  tagOnSubmit purchase addEv
 
 manageActions = undefined
   
