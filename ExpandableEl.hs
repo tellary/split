@@ -39,14 +39,14 @@ expandableContent tagName collapsed expanded content = do
         ElCollapsed -> do
           collapsed
           text " ("
-          elAttr "a" ("class" =: "expandableMarker") $ text "expand"
+          elAttr "a" ("class" =: "link") $ text "expand"
           text ")"
           return $ domEvent Click containerEl
         ElExpanded -> do
           (spanEl, _) <- el' "span" $ do
             expanded
             text " ("
-            elAttr "a" ("class" =: "expandableMarker") $ text "collapse"
+            elAttr "a" ("class" =: "link") $ text "collapse"
             text ")"
           content
           return $ domEvent Click spanEl
