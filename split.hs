@@ -2,28 +2,30 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
-import           Control.Monad     (forM)
-import           Control.Monad.Fix (MonadFix)
-import           Data.FileEmbed    (embedFile)
-import           Data.List         (delete)
-import           Data.Text         (Text)
-import qualified Data.Text         as T
+import           Control.Monad              (forM)
+import           Control.Monad.Fix          (MonadFix)
+import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
+import           Data.FileEmbed             (embedFile)
+import           Data.List                  (delete)
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
 import           MoneySplit
 import           Reflex.Dom
-import           Text.Read         (readMaybe)
+import           Text.Read                  (readMaybe)
 
 resettableInput
   :: (DomBuilder t m, MonadHold t m, MonadFix m)
-  => m (Event t Text)
-resettableInput = do
+  => Event t a -> m (Event t Text)
+resettableInput submitEvent = do
   rec
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
-    let evText = tagPromptlyDyn (value input) evEnter
+    let evText = tagPromptlyDyn (value input) (leftmost [evEnter, () <$ submitEvent])
   return evText
 
 displayUsers :: DomBuilder t m => [Text] -> m (Event t Text)
@@ -41,8 +43,10 @@ manageUsers
   :: (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => m (Dynamic t [Text])
 manageUsers = do
-  addUserEv <- resettableInput
+  el "h2" $ text "Manage users"
   rec
+    addUserEv <- resettableInput addUserButtonEv
+    addUserButtonEv <- button "Add user"
     users <-
       foldDyn ($) []
       ( mergeWith (.)
@@ -53,11 +57,38 @@ manageUsers = do
     deleteUserEv <- switchHold never =<< dyn (displayUsers <$> users)
   return users
 
+type ValidInput t a = ExceptT Text (Dynamic t) a
+
+validInput
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m)
+  => Event t b -> (Text -> Either Text a) -> m (ValidInput t a)
+validInput submitEvent validation = do
+  inputValue :: Dynamic t Text <- value <$> inputElement def
+  let errorOrValue = fmap validation inputValue
+  let error = fmap (either id (const "")) errorOrValue
+  errorOnSubmitOrChange <-
+    holdDyn ""
+    ( tagPromptlyDyn error
+      ( leftmost [() <$ submitEvent, () <$ updated inputValue]
+      )
+    )
+  text " "
+  dynText errorOnSubmitOrChange
+  return . ExceptT $ errorOrValue
+
+tagOnSubmit :: DomBuilder t m => ValidInput t a -> Event t b -> m (Event t a)
+tagOnSubmit errorOrValueT submitEvent
+  = return
+  . mapMaybe id
+  . fmap (either (const Nothing) Just) -- Event Either -> Event Maybe
+  . tagPromptlyDyn (runExceptT errorOrValueT)
+  $ submitEvent
+
 addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => m (Event t Purchase)
 addSplitAllPurchase = do
-  text "Add purchase"
+  el "h2" $ text "Add purchase"
   el "br" blank
   text "User: "
   user <- value <$> inputElement def
@@ -67,27 +98,19 @@ addSplitAllPurchase = do
   el "br" blank
   text "Amount: "
   rec
-    amount <- fmap (readMaybe . T.unpack) <$> value <$> inputElement def
-    amountOnPress <- holdDyn (Just 0) (tagPromptlyDyn amount addEv)
-    text " "
-    dynText . ffor amountOnPress $ \case
-      Nothing -> "Bad amount"
-      Just _ -> ""
+    amount <- validInput addEv $ \txt ->
+      maybe
+      (Left $ "Failed to read amount: " `T.append` txt) Right
+      (readMaybe . T.unpack $ txt :: Maybe Amount)
     el "br" blank
     addEv <- button "Add purchase"
-    let purchase
-          = do
-              userVal <- user
-              descVal <- desc
-              amountMaybe <- amount
-              return
-                $   Purchase
-                <$> pure (T.unpack userVal)
-                <*> pure (T.unpack descVal)
-                <*> amountMaybe
-                <*> pure SplitEquallyAll
-    let purchaseMaybeEv = tagPromptlyDyn purchase $ addEv
-  return . traceEvent "add purchase" . mapMaybe id $ purchaseMaybeEv
+  let purchase
+        = Purchase
+        <$> (ExceptT . fmap (Right . T.unpack) $ user)
+        <*> (ExceptT . fmap (Right . T.unpack) $ desc)
+        <*> amount
+        <*> pure SplitEquallyAll
+  tagOnSubmit purchase $ addEv
 
 manageActions = undefined
   
