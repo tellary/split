@@ -17,6 +17,7 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           MoneySplit
 import           Reflex.Dom
+import           SplitReport
 import           Text.Read                  (readMaybe)
 
 resettableInput
@@ -51,7 +52,7 @@ manageUsers = do
     users <-
       foldDyn ($) []
       ( mergeWith (.)
-        [ ((:) <$> addUserEv)
+        [ (:) <$> addUserEv
         , delete <$> deleteUserEv
         ]
       )
@@ -133,11 +134,23 @@ addSplitAllPurchase users = do
         <*> pure SplitEquallyAll
   tagOnSubmit purchase addEv
 
-manageActions = undefined
-  
+manageActions
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Dynamic t Actions)
+manageActions users = do
+  addPurchaseEv <- addSplitAllPurchase users
+  dynText =<< holdDyn "" (fmap (T.pack . show) addPurchaseEv)
+  purchases <- foldDyn ($) [] ( (:) <$> addPurchaseEv )
+  return $ do
+    usersVal <- users
+    purchasesVal <- purchases
+    return $ Actions (map T.unpack usersVal) [] (map PurchaseAction purchasesVal)
+
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do
   users <- manageUsers
-  dynText =<< holdDyn "" =<< fmap (T.pack . show) <$> addSplitAllPurchase users
+  actions <- manageActions users
+  let nullified = (nullifyBalances . actionsToTransactions) <$> actions
+  dyn (report <$> actions <*> nullified)
   return ()
 
