@@ -43,7 +43,7 @@ then [Make expandable element react only on some sub-element] requires 2 days an
 then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% completed and starts on 2024-07-23
 ["Loading" spinner] is 100% completed and starts on 2024-07-23
 [Implement addition of a user in-memory] is 100% completed and starts on 2024-07-23 and requires 2 days
-[Implement addition of "split all" expenses in-memory] is 0% completed and starts on 2024-07-24 and requires 2 days
+[Implement addition of "split all" expenses in-memory] is 0% completed and starts on 2024-07-24 and requires 3 days
 then [Implement "split equally" expenses] is 0% completed
 then [Handle situation of deleting a user referenced in 'actions'] is 0% completed
 then [Move user management to a separate tab] is 0% completed

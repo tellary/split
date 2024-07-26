@@ -7,11 +7,12 @@
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
-import           Control.Monad              (forM)
+import           Control.Monad              (forM, join)
 import           Control.Monad.Fix          (MonadFix)
 import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
 import           Data.FileEmbed             (embedFile)
 import           Data.List                  (delete)
+import qualified Data.Map                   as M
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           MoneySplit
@@ -83,18 +84,32 @@ tagOnSubmit errorOrValueT submitEvent
   . tagPromptlyDyn (runExceptT errorOrValueT)
   $ submitEvent
 
+dynToDyn :: (DomBuilder t m, MonadHold t m, PostBuild t m)
+  => a -> Dynamic t (m (Dynamic t a)) -> m (Dynamic t a)
+dynToDyn initVal dynWidget =
+  join <$> (holdDyn (constDyn initVal) =<< dyn dynWidget)
+
 addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => m (Event t Purchase)
-addSplitAllPurchase = do
+  => Dynamic t [Text] -> m (Event t Purchase)
+addSplitAllPurchase users = do
   el "h2" $ text "Add purchase"
   text "User: "
   rec
-    user <- validInput addEv $ \txt ->
-      let txt' = T.strip txt
-      in if T.null txt'
-         then Left "No user provided"
-         else Right txt'
+    user :: ValidInput t Text <- ExceptT <$> dynToDyn
+            (Left "")
+            ( ffor users $ \users -> do
+                if null users
+                  then do
+                    text "Please add a user first"
+                    return . constDyn . Left $ "Please add a user first"
+                  else do
+                    el <- dropdown
+                          (head users)
+                          (constDyn . M.fromList $ zip users users)
+                          def
+                    return $ Right <$> value el
+            )
     el "br" blank
     text "Description: "
     desc <- validInput addEv $ \txt ->
@@ -122,7 +137,7 @@ manageActions = undefined
   
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do
-  manageUsers
-  dynText =<< holdDyn "" =<< fmap (T.pack . show) <$> addSplitAllPurchase
+  users <- manageUsers
+  dynText =<< holdDyn "" =<< fmap (T.pack . show) <$> addSplitAllPurchase users
   return ()
 
