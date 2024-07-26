@@ -30,16 +30,20 @@ resettableInput submitEvent = do
     let evText = tagPromptlyDyn (value input) (leftmost [evEnter, () <$ submitEvent])
   return evText
 
-displayUsers :: DomBuilder t m => [Text] -> m (Event t Text)
-displayUsers users = do
-  deleteEvents <- el "ul" . forM users $ \user -> do
-    el "li" $ do
-      text user
-      text " ["
-      (deleteUserEl, _) <- elAttr' "a" ("class" =: "link") $ text "X"
-      text "]"
-      return (user <$ domEvent Click deleteUserEl)
-  return . leftmost $ deleteEvents
+dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
+  => (a -> Text) -> Dynamic t [a] -> m (Event t a)
+dynList showF itemsDyn = switchHold never =<< dyn listWidget
+  where
+    listWidget :: DomBuilder t m => Dynamic t (m (Event t a))
+    listWidget = ffor itemsDyn $ \items -> do
+      deleteEvents <- el "ul" . forM items $ \item -> do
+        el "li" $ do
+          text . showF $ item
+          text " ["
+          (deleteItemEl, _) <- elAttr' "a" ("class" =: "link") $ text "X"
+          text "]"
+          return (item <$ domEvent Click deleteItemEl)
+      return . leftmost $ deleteEvents
 
 manageUsers
   :: (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -56,7 +60,7 @@ manageUsers = do
         , delete <$> deleteUserEv
         ]
       )
-    deleteUserEv <- switchHold never =<< dyn (displayUsers <$> users)
+    deleteUserEv <- dynList id users
   return users
 
 type ValidInput t a = ExceptT Text (Dynamic t) a
@@ -94,7 +98,7 @@ addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Event t Purchase)
 addSplitAllPurchase users = do
-  el "h2" $ text "Add purchase"
+  el "h3" $ text "Add purchase"
   text "User: "
   rec
     user :: ValidInput t Text <- ExceptT <$> dynToDyn
@@ -138,9 +142,18 @@ manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Dynamic t Actions)
 manageActions users = do
+  el "h2" $ text "Manage actions"
   addPurchaseEv <- addSplitAllPurchase users
-  dynText =<< holdDyn "" (fmap (T.pack . show) addPurchaseEv)
-  purchases <- foldDyn ($) [] ( (:) <$> addPurchaseEv )
+  rec
+    purchases <-
+      foldDyn ($) []
+      ( mergeWith (.)
+        [ (:) <$> addPurchaseEv
+        , delete <$> deletePurchaseEv
+        ]
+      )
+    el "h3" $ text "Actions list"
+    deletePurchaseEv <- dynList (T.pack . show) purchases
   return $ do
     usersVal <- users
     purchasesVal <- purchases
@@ -151,6 +164,7 @@ main = mainWidgetWithCss $(embedFile "split.css") $ do
   users <- manageUsers
   actions <- manageActions users
   let nullified = (nullifyBalances . actionsToTransactions) <$> actions
+  el "h2" $ text "Report"
   dyn (report <$> actions <*> nullified)
   return ()
 
