@@ -27,7 +27,9 @@ resettableInput submitEvent = do
   rec
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
-    let evText = tagPromptlyDyn (value input) (leftmost [evEnter, () <$ submitEvent])
+    let evText = tagPromptlyDyn
+                 (value input)
+                 (leftmost [evEnter, () <$ submitEvent])
   return evText
 
 dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
@@ -94,6 +96,38 @@ dynToDyn :: (DomBuilder t m, MonadHold t m, PostBuild t m)
 dynToDyn initVal dynWidget =
   join <$> (holdDyn (constDyn initVal) =<< dyn dynWidget)
 
+data ActionType
+  = PurchaseSplitEquallyAllActionType
+  | PurchaseSplitEquallyActionType
+  | PurchaseItemizedSplitActionType
+  | PaymentTransactionActionType deriving (Eq, Ord, Show)
+
+addAction
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Event t Action)
+addAction users = do
+  text "Choose action type: "
+  dropdownEl <- dropdown Nothing
+    ( constDyn
+     (    Just PurchaseSplitEquallyAllActionType
+          =: "Purchase Split Equally All"
+       <> Just PurchaseSplitEquallyActionType
+          =: "Purchase Split Equally"
+       <> Just PurchaseItemizedSplitActionType
+          =: "Purchase Itemized Split"
+       <> Just PaymentTransactionActionType
+          =: "Payment"
+     )) def
+  let actionType = value dropdownEl
+  switchHold never =<< do
+    dyn . ffor actionType $ \case
+      Nothing -> return never
+      Just PurchaseSplitEquallyAllActionType
+        -> fmap (fmap PurchaseAction) $ addSplitAllPurchase users
+      Just PurchaseSplitEquallyActionType
+        -> fmap (fmap PurchaseAction) $ addSplitEquallyPurchase users
+      _ -> return never
+  
 addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Event t Purchase)
@@ -204,25 +238,18 @@ manageActions
   => Dynamic t [Text] -> m (Dynamic t Actions)
 manageActions users = do
   el "h2" $ text "Manage actions"
-  addSplitAllPurchaseEv <- addSplitAllPurchase users
-  addSplitEquallyPurchaseEv <- addSplitEquallyPurchase users
+  addActionEv <- addAction users
   rec
-    purchases <-
+    actions <-
       foldDyn ($) []
       ( mergeWith (.)
-        [ (:) <$> addSplitAllPurchaseEv
-        , (:) <$> addSplitEquallyPurchaseEv
-        , delete <$> deletePurchaseEv
+        [ (:) <$> addActionEv
+        , delete <$> deleteActionEv
         ]
       )
     el "h3" $ text "Actions list"
-    deletePurchaseEv <- dynList (T.pack . show) purchases
-  return $ do
-    usersVal <- users
-    purchasesVal <- purchases
-    return
-      $ Actions (map T.unpack usersVal) []
-        (map PurchaseAction purchasesVal)
+    deleteActionEv <- dynList (T.pack . show) actions
+  return $ Actions <$> fmap (map T.unpack) users <*> pure [] <*> actions
 
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do

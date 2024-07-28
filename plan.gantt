@@ -45,6 +45,7 @@ then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% com
 [Implement addition of a user in-memory] is 100% completed and starts on 2024-07-23 and requires 2 days
 [Implement addition of "split all" expenses in-memory] is 100% completed and starts on 2024-07-24 and requires 3 days
 then [Implement "split equally" expenses] is 0% completed
+then [Don't allow negative amounts] is 0% completed
 then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
 then [Implement "itemized split" expenses] is 0% completed and requires 2 days
 then [Implement payment transactions] is 0% completed

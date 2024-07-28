@@ -135,7 +135,9 @@ splitUsers _       (ItemizedSplit items) = splitItemsUsers $ items
 purchaseSplitUsers actions (Purchase { purchaseSplit = split })
   = splitUsers actions split
 
-data Action = PurchaseAction Purchase | PaymentAction Transaction deriving Show
+data Action
+  = PurchaseAction Purchase | PaymentAction Transaction
+  deriving (Eq, Show)
 data Actions
   = Actions
   { actionsUsers :: [User]
