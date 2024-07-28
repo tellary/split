@@ -98,7 +98,7 @@ addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Event t Purchase)
 addSplitAllPurchase users = do
-  el "h3" $ text "Add purchase"
+  el "h3" $ text "Add \"split all\" purchase"
   text "User: "
   rec
     user :: ValidInput t Text <- ExceptT <$> dynToDyn
@@ -138,17 +138,80 @@ addSplitAllPurchase users = do
         <*> pure SplitEquallyAll
   tagOnSubmit purchase addEv
 
+addSplitEquallyPurchase
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Event t Purchase)
+addSplitEquallyPurchase users = do
+  el "h3" $ text "Add \"split equally\" purchase"
+  text "User: "
+  rec
+    user :: ValidInput t Text <- ExceptT <$> dynToDyn
+            (Left "")
+            ( ffor users $ \users -> do
+                if null users
+                  then do
+                    text "Please add a user first"
+                    return . constDyn . Left $ "Please add a user first"
+                  else do
+                    el <- dropdown
+                          (head users)
+                          (constDyn . M.fromList $ zip users users)
+                          def
+                    return $ Right <$> value el
+            )
+    el "br" blank
+    text "Description: "
+    desc <- validInput addEv $ \txt ->
+      let txt' = T.strip txt
+      in if T.null txt'
+         then Left "No description provided"
+         else Right txt'
+    el "br" blank
+    text "Amount: "
+    amount <- validInput addEv $ \txt ->
+      maybe
+      (Left $ "Failed to read amount: " `T.append` txt) Right
+      (readMaybe . T.unpack $ txt :: Maybe Amount)
+    el "br" blank
+    selectedUsers :: ValidInput t [Text]
+        <- fmap (ExceptT . fmap Right) . dynToDyn [] . ffor users $ \users -> do
+      selectedCbs :: Dynamic t [Bool] <-
+        fmap sequence . forM users $ \user -> do
+          cb <- inputElement
+            $ def
+            & inputElementConfig_elementConfig
+            . elementConfig_initialAttributes
+            .~ (  "type" =: "checkbox"
+               <> "id" =: "split_" `T.append` user)
+          elAttr "label" ("for" =: "split_" `T.append` user) $ do
+            text " "
+            text user
+          el "br" blank
+          return . _inputElement_checked $ cb
+      return . fmap (map snd . filter fst)
+        $ (zip <$> selectedCbs <*> pure users)
+    addEv <- button "Add purchase"
+  let purchase
+        = Purchase
+        <$> fmap (T.unpack) user
+        <*> fmap (T.unpack) desc
+        <*> amount
+        <*> (SplitEqually . fmap T.unpack <$> selectedUsers)
+  tagOnSubmit purchase addEv
+
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Dynamic t Actions)
 manageActions users = do
   el "h2" $ text "Manage actions"
-  addPurchaseEv <- addSplitAllPurchase users
+  addSplitAllPurchaseEv <- addSplitAllPurchase users
+  addSplitEquallyPurchaseEv <- addSplitEquallyPurchase users
   rec
     purchases <-
       foldDyn ($) []
       ( mergeWith (.)
-        [ (:) <$> addPurchaseEv
+        [ (:) <$> addSplitAllPurchaseEv
+        , (:) <$> addSplitEquallyPurchaseEv
         , delete <$> deletePurchaseEv
         ]
       )
@@ -157,7 +220,9 @@ manageActions users = do
   return $ do
     usersVal <- users
     purchasesVal <- purchases
-    return $ Actions (map T.unpack usersVal) [] (map PurchaseAction purchasesVal)
+    return
+      $ Actions (map T.unpack usersVal) []
+        (map PurchaseAction purchasesVal)
 
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do

@@ -45,6 +45,13 @@ then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% com
 [Implement addition of a user in-memory] is 100% completed and starts on 2024-07-23 and requires 2 days
 [Implement addition of "split all" expenses in-memory] is 100% completed and starts on 2024-07-24 and requires 3 days
 then [Implement "split equally" expenses] is 0% completed
+then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
+then [Implement "itemized split" expenses] is 0% completed and requires 2 days
+then [Implement payment transactions] is 0% completed
+then [Implement user groups] is 0% completed
+then [Replace 'Purchase(purchaseUser)' with an account] is 0% completed
+then [Don't report users that have no transactions] is 0% completed
+then [Render actions] is 0% completed
 then [Prevent deletion of a user referenced in 'actions'] is 0% completed and requires 2 days
 then [Move user management to a separate tab] is 0% completed
 then [Reset fields in action addition form] is 0% completed
@@ -63,8 +70,9 @@ then [Implement user groups] is 0% completed
 then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
 then [Deploy money split] is 0% completed
 then [Add user stat] is 0% completed
-then [Buffer: UI ready] requires 20 days and is 0% completed
-[UI completed] happens on 2024-09-12
+then [Use Tailwind material] is 0% completed and requires 3 days
+then [Buffer: UI ready] ends on 2024-09-17 and is 0% completed
+[UI completed] happens on 2024-09-17
 then [Advertise among friends] is 0% completed
 then [Update LinkedIn] is 0% completed
 then [Advertise in LinkedIn] is 0% completed
@@ -80,5 +88,5 @@ then [Add context ads] is 0% completed
 [Allow workpsace editing to users in the workspace] starts at [Implement addition of users to the workspace]'s end and is 0% completed
 [Implement `Actions` merge] starts at [Allow workpsace editing to users in the workspace]'s end and is 0% completed
 then [Buffer: Backend ready] is 0% completed and requires 14 days
-[Backend ready] happens on 2024-10-17
+[Backend ready] happens on 2024-10-22
 @endgantt
