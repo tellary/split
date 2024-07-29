@@ -1,4 +1,19 @@
 .link {
-  text-decoration: underline;
-  color: blue;
+    text-decoration: underline;
+    color: blue;
+}
+
+table.nested {
+    border-collapse: collapse;
+    margin-bottom: 1em;
+}
+
+table tr td:first-child.nested {
+    padding-right:1em;
+    height:0px;
+}
+
+table tr td:nth-of-type(2).nested {
+    border: 1px solid;
+    padding: 1em
 }

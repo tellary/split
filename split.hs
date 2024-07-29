@@ -126,44 +126,58 @@ addAction users = do
         -> fmap (fmap PurchaseAction) $ addSplitAllPurchase users
       Just PurchaseSplitEquallyActionType
         -> fmap (fmap PurchaseAction) $ addSplitEquallyPurchase users
+      Just PurchaseItemizedSplitActionType
+        -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users
       _ -> return never
-  
+
+userInput users = do
+  text "User: "
+  user :: ValidInput t Text <- ExceptT <$> dynToDyn
+    (Left "")
+    ( ffor users $ \users -> do
+        if null users
+          then do
+            text "Please add a user first"
+            return . constDyn . Left $ "Please add a user first"
+          else do
+            el <- dropdown
+                  (head users)
+                  (constDyn . M.fromList $ zip users users)
+                  def
+            return $ Right <$> value el
+    )
+  el "br" blank
+  return user
+
+descriptionInput addEv = do
+  text "Description: "
+  desc <- validInput addEv $ \txt ->
+    let txt' = T.strip txt
+    in if T.null txt'
+       then Left "No description provided"
+       else Right txt'
+  el "br" blank
+  return desc
+
+amountInput addEv = do
+  text "Amount: "
+  amount <- validInput addEv $ \txt ->
+    maybe
+    (Left $ "Failed to read amount: " `T.append` txt) Right
+    (readMaybe . T.unpack $ txt :: Maybe Amount)
+  el "br" blank
+  return amount
+
 addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Event t Purchase)
 addSplitAllPurchase users = do
   el "h3" $ text "Add \"split all\" purchase"
-  text "User: "
+  user <- userInput users
   rec
-    user :: ValidInput t Text <- ExceptT <$> dynToDyn
-            (Left "")
-            ( ffor users $ \users -> do
-                if null users
-                  then do
-                    text "Please add a user first"
-                    return . constDyn . Left $ "Please add a user first"
-                  else do
-                    el <- dropdown
-                          (head users)
-                          (constDyn . M.fromList $ zip users users)
-                          def
-                    return $ Right <$> value el
-            )
-    el "br" blank
-    text "Description: "
-    desc <- validInput addEv $ \txt ->
-      let txt' = T.strip txt
-      in if T.null txt'
-         then Left "No description provided"
-         else Right txt'
-    el "br" blank
-    text "Amount: "
-    amount <- validInput addEv $ \txt ->
-      maybe
-      (Left $ "Failed to read amount: " `T.append` txt) Right
-      (readMaybe . T.unpack $ txt :: Maybe Amount)
-    el "br" blank
-    addEv <- button "Add purchase"
+    desc   <- descriptionInput addEv
+    amount <- amountInput addEv
+    addEv  <- button "Add purchase"
   let purchase
         = Purchase
         <$> fmap (T.unpack) user
@@ -177,36 +191,10 @@ addSplitEquallyPurchase
   => Dynamic t [Text] -> m (Event t Purchase)
 addSplitEquallyPurchase users = do
   el "h3" $ text "Add \"split equally\" purchase"
-  text "User: "
+  user <- userInput users
   rec
-    user :: ValidInput t Text <- ExceptT <$> dynToDyn
-            (Left "")
-            ( ffor users $ \users -> do
-                if null users
-                  then do
-                    text "Please add a user first"
-                    return . constDyn . Left $ "Please add a user first"
-                  else do
-                    el <- dropdown
-                          (head users)
-                          (constDyn . M.fromList $ zip users users)
-                          def
-                    return $ Right <$> value el
-            )
-    el "br" blank
-    text "Description: "
-    desc <- validInput addEv $ \txt ->
-      let txt' = T.strip txt
-      in if T.null txt'
-         then Left "No description provided"
-         else Right txt'
-    el "br" blank
-    text "Amount: "
-    amount <- validInput addEv $ \txt ->
-      maybe
-      (Left $ "Failed to read amount: " `T.append` txt) Right
-      (readMaybe . T.unpack $ txt :: Maybe Amount)
-    el "br" blank
+    desc   <- descriptionInput addEv
+    amount <- amountInput addEv
     selectedUsers :: ValidInput t [Text]
         <- fmap (ExceptT . fmap Right) . dynToDyn [] . ffor users $ \users -> do
       selectedCbs :: Dynamic t [Bool] <-
@@ -231,6 +219,68 @@ addSplitEquallyPurchase users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> (SplitEqually . fmap T.unpack <$> selectedUsers)
+  tagOnSubmit purchase addEv
+
+addSplitItem
+  ::(DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Event t SplitItem)
+addSplitItem users = do
+  user   <- userInput users
+  rec
+    desc   <- descriptionInput addEv
+    amount <- amountInput addEv
+    addEv  <- button "Add split item"
+  let splitItem
+        = SplitItem
+        <$> fmap (T.unpack) user
+        <*> fmap (T.unpack) desc
+        <*> amount
+  tagOnSubmit splitItem addEv
+  
+manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Dynamic t [SplitItem])
+manageSplitItems users = do
+  addSplitItemEv <- addSplitItem users
+  rec
+    splitItems <-
+      foldDyn ($) []
+      ( mergeWith (.)
+        [ (:) <$> addSplitItemEv
+        , delete <$> deleteSplitItemEv
+        ]
+      )
+    el "h5" $ text "Split items"
+    deleteSplitItemEv <- dynList (T.pack . show) splitItems
+  return splitItems
+
+addItemizedSplitPurchase
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Event t Purchase)
+addItemizedSplitPurchase users = do
+  el "h3" $ text "Add \"itemized split\" purchase"
+  user <- userInput users
+  rec
+    desc       <- descriptionInput addEv
+    text "Amount: "
+    let amount = fmap (sum . map splitItemAmount) $ splitItems
+    dynText . fmap (T.pack . show) $ amount
+    splitItems <- 
+      elAttr "table" ("class" =: "nested") $ do
+        splitItems <- el "tr" $ do
+          elAttr "td" ("class" =: "nested") $ do
+            text "Split items: "
+          elAttr "td" ("rowspan" =: "2" <> "class" =: "nested") $ do
+            manageSplitItems users
+        el "tr" $ do
+          el "td" $ blank
+        return splitItems
+    addEv <- button "Add purchase"
+  let purchase
+        = Purchase
+        <$> fmap (T.unpack) user
+        <*> fmap (T.unpack) desc
+        <*> (ExceptT . fmap (Right . sum . map splitItemAmount) $ splitItems)
+        <*> (ExceptT . fmap (Right . ItemizedSplit) $ splitItems)
   tagOnSubmit purchase addEv
 
 manageActions

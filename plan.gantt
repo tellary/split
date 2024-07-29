@@ -44,12 +44,13 @@ then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% com
 ["Loading" spinner] is 100% completed and starts on 2024-07-23
 [Implement addition of a user in-memory] is 100% completed and starts on 2024-07-23 and requires 2 days
 [Implement addition of "split all" expenses in-memory] is 100% completed and starts on 2024-07-24 and requires 3 days
-then [Implement "split equally" expenses] is 0% completed
+then [Implement "split equally" expenses] is 100% completed
+2024-07-28 is open
+then [Implement "itemized split" expenses] is 100% completed and requires 1 day
+[Implement user groups UI] is 0% completed and starts on 2024-07-29
+then [Implement payment transactions] is 0% completed
 then [Don't allow negative amounts] is 0% completed
 then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
-then [Implement "itemized split" expenses] is 0% completed and requires 2 days
-then [Implement payment transactions] is 0% completed
-then [Implement user groups] is 0% completed
 then [Replace 'Purchase(purchaseUser)' with an account] is 0% completed
 then [Don't report users that have no transactions] is 0% completed
 then [Render actions] is 0% completed
