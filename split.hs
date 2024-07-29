@@ -66,7 +66,7 @@ manageUsers = do
   return users
 
 manageGroups
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Dynamic t [[Text]])
 manageGroups users = do
   el "h2" $ text "Manage user groups"
@@ -78,16 +78,23 @@ manageGroups users = do
             . filter (not . \user -> any (\group -> user `elem` group) groups)
             $ users
     newGroupUsers <- selectUsers "groups" usersNotInGroups
-    addGroupEv <- button "Add group"
+    let newGroupUsersValid :: ValidInput t [Text]
+          = ExceptT $ newGroupUsers >>= \newGroupUsers -> case newGroupUsers of
+              [] -> return . Left $ "No users selected. "
+                    `T.append` "At least 2 users necessary for a group"
+              [_] -> return . Left $ "Only one user is selected. "
+                     `T.append` "At least 2 users necessary for a group"
+              (_) -> return . Right $ newGroupUsers
+    addGroupEv <- tagValid newGroupUsersValid =<< button "Add group"
     userGroups <-
       foldDyn ($) []
       ( mergeWith (.)
-        [ (:) <$> tagPromptlyDyn newGroupUsers addGroupEv
-        , delete <$> deleteUserGroupEv
+        [ (:)    <$> addGroupEv
+        , delete <$> deleteGroupEv
         ]
       )
     el "h3" $ text "User groups"
-    deleteUserGroupEv <- dynList (T.pack . show) userGroups
+    deleteGroupEv <- dynList (T.pack . show) userGroups
   return userGroups
   
 type ValidInput t a = ExceptT Text (Dynamic t) a
@@ -108,8 +115,8 @@ validInput submitEvent validation = do
   dynText errorOnSubmitOrChange
   return . ExceptT $ errorOrValue
 
-tagOnSubmit :: DomBuilder t m => ValidInput t a -> Event t b -> m (Event t a)
-tagOnSubmit errorOrValueT submitEvent
+tagValid :: DomBuilder t m => ValidInput t a -> Event t b -> m (Event t a)
+tagValid errorOrValueT submitEvent
   = return
   . mapMaybe id
   . fmap (either (const Nothing) Just) -- Event Either -> Event Maybe
@@ -209,7 +216,7 @@ addSplitAllPurchase users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> pure SplitEquallyAll
-  tagOnSubmit purchase addEv
+  tagValid purchase addEv
 
 selectUsers  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Text -> Dynamic t [Text] -> m (Dynamic t [Text])
@@ -249,7 +256,7 @@ addSplitEquallyPurchase users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> (SplitEqually . fmap T.unpack <$> selectedUsers)
-  tagOnSubmit purchase addEv
+  tagValid purchase addEv
 
 addSplitItem
   ::(DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -265,7 +272,7 @@ addSplitItem users = do
         <$> fmap (T.unpack) user
         <*> fmap (T.unpack) desc
         <*> amount
-  tagOnSubmit splitItem addEv
+  tagValid splitItem addEv
   
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Dynamic t [SplitItem])
@@ -311,7 +318,7 @@ addItemizedSplitPurchase users = do
         <*> fmap (T.unpack) desc
         <*> (ExceptT . fmap (Right . sum . map splitItemAmount) $ splitItems)
         <*> (ExceptT . fmap (Right . ItemizedSplit) $ splitItems)
-  tagOnSubmit purchase addEv
+  tagValid purchase addEv
 
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
