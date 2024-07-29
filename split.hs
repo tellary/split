@@ -71,13 +71,18 @@ manageGroups
 manageGroups users = do
   el "h2" $ text "Manage user groups"
   el "h3" $ text "Select users for the group"
-  groupUsers <- selectUsers "groups" users
-  addGroupEv <- button "Add group"
   rec
+    let usersNotInGroups = users >>= \users ->
+          userGroups >>= \groups ->
+            return
+            . filter (not . \user -> any (\group -> user `elem` group) groups)
+            $ users
+    newGroupUsers <- selectUsers "groups" usersNotInGroups
+    addGroupEv <- button "Add group"
     userGroups <-
       foldDyn ($) []
       ( mergeWith (.)
-        [ (:) <$> tagPromptlyDyn groupUsers addGroupEv
+        [ (:) <$> tagPromptlyDyn newGroupUsers addGroupEv
         , delete <$> deleteUserGroupEv
         ]
       )
