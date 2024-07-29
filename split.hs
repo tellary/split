@@ -65,6 +65,26 @@ manageUsers = do
     deleteUserEv <- dynList id users
   return users
 
+manageGroups
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [Text] -> m (Dynamic t [[Text]])
+manageGroups users = do
+  el "h2" $ text "Manage user groups"
+  el "h3" $ text "Select users for the group"
+  groupUsers <- selectUsers "groups" users
+  addGroupEv <- button "Add group"
+  rec
+    userGroups <-
+      foldDyn ($) []
+      ( mergeWith (.)
+        [ (:) <$> tagPromptlyDyn groupUsers addGroupEv
+        , delete <$> deleteUserGroupEv
+        ]
+      )
+    el "h3" $ text "User groups"
+    deleteUserGroupEv <- dynList (T.pack . show) userGroups
+  return userGroups
+  
 type ValidInput t a = ExceptT Text (Dynamic t) a
 
 validInput
@@ -186,6 +206,26 @@ addSplitAllPurchase users = do
         <*> pure SplitEquallyAll
   tagOnSubmit purchase addEv
 
+selectUsers  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Text -> Dynamic t [Text] -> m (Dynamic t [Text])
+selectUsers idPrefix users
+  = dynToDyn [] . ffor users $ \users -> do
+      selectedCbs :: Dynamic t [Bool] <-
+        fmap sequence . forM users $ \user -> do
+          cb <- inputElement
+            $ def
+            & inputElementConfig_elementConfig
+            . elementConfig_initialAttributes
+            .~ (  "type" =: "checkbox"
+               <> "id" =: idPrefix `T.append` "_" `T.append` user)
+          elAttr "label" ("for" =: "split_" `T.append` user) $ do
+            text " "
+            text user
+          el "br" blank
+          return . _inputElement_checked $ cb
+      return . fmap (map snd . filter fst)
+        $ (zip <$> selectedCbs <*> pure users)
+
 addSplitEquallyPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Event t Purchase)
@@ -196,22 +236,7 @@ addSplitEquallyPurchase users = do
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
     selectedUsers :: ValidInput t [Text]
-        <- fmap (ExceptT . fmap Right) . dynToDyn [] . ffor users $ \users -> do
-      selectedCbs :: Dynamic t [Bool] <-
-        fmap sequence . forM users $ \user -> do
-          cb <- inputElement
-            $ def
-            & inputElementConfig_elementConfig
-            . elementConfig_initialAttributes
-            .~ (  "type" =: "checkbox"
-               <> "id" =: "split_" `T.append` user)
-          elAttr "label" ("for" =: "split_" `T.append` user) $ do
-            text " "
-            text user
-          el "br" blank
-          return . _inputElement_checked $ cb
-      return . fmap (map snd . filter fst)
-        $ (zip <$> selectedCbs <*> pure users)
+        <- fmap (ExceptT . fmap Right) $ selectUsers "split" users
     addEv <- button "Add purchase"
   let purchase
         = Purchase
@@ -285,8 +310,8 @@ addItemizedSplitPurchase users = do
 
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Dynamic t Actions)
-manageActions users = do
+  => Dynamic t [Text] -> Dynamic t [[Text]] -> m (Dynamic t Actions)
+manageActions users groups = do
   el "h2" $ text "Manage actions"
   addActionEv <- addAction users
   rec
@@ -299,12 +324,17 @@ manageActions users = do
       )
     el "h3" $ text "Actions list"
     deleteActionEv <- dynList (T.pack . show) actions
-  return $ Actions <$> fmap (map T.unpack) users <*> pure [] <*> actions
+  return
+    $   Actions
+    <$> fmap (map T.unpack) users
+    <*> fmap (map (map T.unpack)) groups
+    <*> actions
 
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do
   users <- manageUsers
-  actions <- manageActions users
+  groups <- manageGroups users
+  actions <- manageActions users groups
   let nullified = (nullifyBalances . actionsToTransactions) <$> actions
   el "h2" $ text "Report"
   dyn (report <$> actions <*> nullified)
