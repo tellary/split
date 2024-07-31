@@ -47,10 +47,11 @@ then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% com
 then [Implement "split equally" expenses] is 100% completed
 2024-07-28 is open
 then [Implement "itemized split" expenses] is 100% completed and requires 1 day
-[Implement user groups UI] is 0% completed and starts on 2024-07-29
+[Implement user groups UI] is 100% completed and starts on 2024-07-29 and ends on 2024-07-31
 then [Render actions] is 0% completed
 then [Render splits] is 0% completed
 then [Don't allow negative amounts] is 0% completed
+then [Don't allow "split equally" w/o users] is 0% completed
 then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
 then [Implement payment transactions] is 0% completed
 then [Use standard Reflex functions to work with lists] is 0% completed
