@@ -105,7 +105,7 @@ manageGroups users = do
         ]
       )
     el "h3" $ text "User groups"
-    deleteGroupEv <- dynList (T.pack . show) userGroups
+    deleteGroupEv <- dynList (T.pack . printUsersList . map T.unpack) userGroups
   return userGroups
 
 type ValidInput t a = ExceptT Text (Dynamic t) a
