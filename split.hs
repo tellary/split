@@ -149,28 +149,27 @@ addAction
   => Dynamic t [Text] -> m (Event t Action)
 addAction users = do
   text "Choose action type: "
-  dropdownEl <- dropdown Nothing
+  dropdownEl <- dropdown PurchaseSplitEquallyAllActionType
     ( constDyn
-     (    Just PurchaseSplitEquallyAllActionType
+     (    PurchaseSplitEquallyAllActionType
           =: "Purchase Split Equally All"
-       <> Just PurchaseSplitEquallyActionType
+       <> PurchaseSplitEquallyActionType
           =: "Purchase Split Equally"
-       <> Just PurchaseItemizedSplitActionType
+       <> PurchaseItemizedSplitActionType
           =: "Purchase Itemized Split"
-       <> Just PaymentTransactionActionType
+       <> PaymentTransactionActionType
           =: "Payment"
      )) def
   let actionType = value dropdownEl
   switchHold never =<< do
     dyn . ffor actionType $ \case
-      Nothing -> return never
-      Just PurchaseSplitEquallyAllActionType
+      PurchaseSplitEquallyAllActionType
         -> fmap (fmap PurchaseAction) $ addSplitAllPurchase users
-      Just PurchaseSplitEquallyActionType
+      PurchaseSplitEquallyActionType
         -> fmap (fmap PurchaseAction) $ addSplitEquallyPurchase users
-      Just PurchaseItemizedSplitActionType
+      PurchaseItemizedSplitActionType
         -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users
-      _ -> return never
+      PaymentTransactionActionType -> error "Not implemented"
 
 userInput users = do
   text "User: "
