@@ -52,7 +52,7 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Implement user groups UI] is 100% completed and starts on 2024-07-29 and ends on 2024-07-31
 2024-08-01 is closed
 [Render actions] is 100% completed and starts on 2024-08-02
-then [Render splits] is 0% completed
+[Render splits] is 100% completed and starts on 2024-08-02
 then [Implement payment transactions] is 0% completed
 then [Require at least 2 users] is 0% completed
 then [Don't allow negative amounts] is 0% completed

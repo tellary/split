@@ -287,7 +287,14 @@ addSplitItem users = do
         <*> fmap (T.unpack) desc
         <*> amount
   return $ tagValid splitItem addEv
-  
+
+splitWidget item = do
+  text . T.pack . splitItemUser $ item
+  text ", "
+  text . T.pack . splitItemDesc $ item
+  text " -- "
+  text . T.pack . show . splitItemAmount $ item
+
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> m (Dynamic t [SplitItem])
 manageSplitItems users = do
@@ -301,7 +308,7 @@ manageSplitItems users = do
         ]
       )
     el "h5" $ text "Split items"
-    deleteSplitItemEv <- dynList (text . T.pack . show) splitItems
+    deleteSplitItemEv <- dynList splitWidget splitItems
   return splitItems
 
 addItemizedSplitPurchase
