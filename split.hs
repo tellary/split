@@ -33,19 +33,22 @@ resettableInput submitEvent = do
   return evText
 
 dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
-  => (a -> Text) -> Dynamic t [a] -> m (Event t a)
+  => (a -> m ()) -> Dynamic t [a] -> m (Event t a)
 dynList showF itemsDyn = switchHold never =<< dyn listWidget
   where
     listWidget :: DomBuilder t m => Dynamic t (m (Event t a))
     listWidget = ffor itemsDyn $ \items -> do
       deleteEvents <- el "ul" . forM items $ \item -> do
         el "li" $ do
-          text . showF $ item
-          text " ["
-          (deleteItemEl, _) <- elAttr' "a" ("class" =: "link") $ text "X"
-          text "]"
-          return (item <$ domEvent Click deleteItemEl)
+          showF $ item
+          deleteX item
       return . leftmost $ deleteEvents
+
+deleteX item = do
+  text " ["
+  (deleteItemEl, _) <- elAttr' "a" ("class" =: "link") $ text "X"
+  text "]"
+  return (item <$ domEvent Click deleteItemEl)  
 
 manageUsers
   :: (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -62,7 +65,7 @@ manageUsers = do
         , delete <$> deleteUserEv
         ]
       )
-    deleteUserEv <- dynList id users
+    deleteUserEv <- dynList (text . id) users
   return users
 
 manageGroups
@@ -105,7 +108,8 @@ manageGroups users = do
         ]
       )
     el "h3" $ text "User groups"
-    deleteGroupEv <- dynList (T.pack . printUsersList . map T.unpack) userGroups
+    deleteGroupEv <-
+      dynList (text . T.pack . printUsersList . map T.unpack) userGroups
   return userGroups
 
 type ValidInput t a = ExceptT Text (Dynamic t) a
@@ -297,7 +301,7 @@ manageSplitItems users = do
         ]
       )
     el "h5" $ text "Split items"
-    deleteSplitItemEv <- dynList (T.pack . show) splitItems
+    deleteSplitItemEv <- dynList (text . T.pack . show) splitItems
   return splitItems
 
 addItemizedSplitPurchase
@@ -330,6 +334,55 @@ addItemizedSplitPurchase users = do
         <*> (ExceptT . fmap (Right . ItemizedSplit) $ splitItems)
   return $ tagValid purchase addEv
 
+actionWidgetPayedFor
+    ( PurchaseAction
+      ( Purchase
+        { purchaseUser = purchaseUser
+        , purchaseDesc = purchaseDesc
+        , purchaseAmount = purchaseAmount
+        }
+      )
+    ) = do
+  text . T.pack $ purchaseUser
+  text " payed "
+  text . T.pack . show $ purchaseAmount
+  text " for \""
+  text . T.pack $ purchaseDesc
+  text "\""
+actionWidgetPayedFor _
+  = error "actionWidgetPayedFor: only implemented for purchases so far"
+
+actionWidget
+    action@( PurchaseAction
+      ( Purchase { purchaseSplit = SplitEquallyAll } )
+    ) = do
+  actionWidgetPayedFor action
+  text " split equally to all"
+actionWidget
+    action@( PurchaseAction
+      ( Purchase { purchaseSplit = SplitEqually [user] } )
+    ) = do
+  actionWidgetPayedFor action
+  text " for "
+  text . T.pack $ user
+actionWidget
+    action@( PurchaseAction
+      ( Purchase { purchaseSplit = SplitEqually users } )
+    ) = do
+  actionWidgetPayedFor action
+  text " split equally to "
+  text . T.pack . printUsersList $ users
+actionWidget
+    action@( PurchaseAction
+      ( Purchase { purchaseSplit = ItemizedSplit splits } )
+    ) = do
+  actionWidgetPayedFor action
+  text " split in "
+  text . T.pack . show . length $ splits
+  text " items"
+actionWidget a = do
+  text . T.pack . show $ a
+
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [Text] -> Dynamic t [[Text]] -> m (Dynamic t Actions)
@@ -345,7 +398,7 @@ manageActions users groups = do
         ]
       )
     el "h3" $ text "Actions list"
-    deleteActionEv <- dynList (T.pack . show) actions
+    deleteActionEv <- dynList actionWidget actions
   return
     $   Actions
     <$> fmap (map T.unpack) users

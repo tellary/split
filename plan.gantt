@@ -40,6 +40,8 @@ then [Make expandable element react only on some sub-element] requires 2 days an
 [Itemized split report] starts on 2024-07-18
 [Itemized split report] is 100% completed
 [Publish report to S3] is 100% completed and starts on 2024-07-18
+2024-07-19 is closed
+2024-07-22 is closed
 then ['SplitEqually' report for 1 account doesn't group by accounts] is 100% completed and starts on 2024-07-23
 ["Loading" spinner] is 100% completed and starts on 2024-07-23
 [Implement addition of a user in-memory] is 100% completed and starts on 2024-07-23 and requires 2 days
@@ -48,12 +50,16 @@ then [Implement "split equally" expenses] is 100% completed
 2024-07-28 is open
 then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Implement user groups UI] is 100% completed and starts on 2024-07-29 and ends on 2024-07-31
-then [Render actions] is 0% completed
+2024-08-01 is closed
+[Render actions] is 100% completed and starts on 2024-08-02
 then [Render splits] is 0% completed
+then [Implement payment transactions] is 0% completed
+then [Require at least 2 users] is 0% completed
 then [Don't allow negative amounts] is 0% completed
 then [Don't allow "split equally" w/o users] is 0% completed
 then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
-then [Implement payment transactions] is 0% completed
+then [Preserve user, amount and description between different types of purchases] is 0% completed
+then [Implement editing of purchases] is 0% completed and requires 2 days
 then [Use standard Reflex functions to work with lists] is 0% completed
 then [Replace 'Purchase(purchaseUser)' with an account] is 0% completed
 then [Don't report users that have no transactions] is 0% completed
