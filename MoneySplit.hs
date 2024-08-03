@@ -136,7 +136,7 @@ purchaseSplitUsers actions (Purchase { purchaseSplit = split })
   = splitUsers actions split
 
 data Action
-  = PurchaseAction Purchase | PaymentAction Transaction
+  = PurchaseAction Purchase | PaymentAction User User Amount
   deriving (Eq, Show)
 data Actions
   = Actions
@@ -213,8 +213,17 @@ toTransactions
         (sum . map splitItemAmount $ userSplitItems)
         (TxReasonPurchase purchase)
     groupsByUsersVal = groupsByUsers groups
-toTransactions _ (PaymentAction tx) = [tx]
-
+toTransactions
+  (Actions _ groups _)
+  (PaymentAction debitUser creditUser amount)
+  = [ Transaction
+      (userToAccount groupsByUsersVal debitUser)
+      (userToAccount groupsByUsersVal creditUser)
+      amount
+      TxReasonPayment
+    ]
+  where
+    groupsByUsersVal = groupsByUsers groups
 balance :: Account -> [Transaction] -> Amount
 balance account transactions
   = ( sum . fromJust . sequence . filter isJust . map (creditAmount account)
@@ -672,13 +681,7 @@ actions3
                       17       SplitEquallyAll)
     , PurchaseAction (Purchase "Dima" "Two small Ginjinhas"
                       8       (SplitEqually ["Aigiza"]))
-    , PaymentAction
-      ( Transaction
-        ( GroupAccount ["Dima", "Alena"] )
-        ( GroupAccount ["Tasha", "Ilya"] )
-        (200 - 12.44)
-        TxReasonPayment
-      )
+    , PaymentAction "Dima" "Ilya" (200 - 12.44)
     ]
 
 nullify3 = nullifyBalances . actionsToTransactions $ actions3

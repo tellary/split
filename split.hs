@@ -159,8 +159,8 @@ data ActionType
 
 addAction
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
-addAction users groups = do
+  => Dynamic t [User] -> m (Event t Action)
+addAction users = do
   text "Choose action type: "
   dropdownEl <- dropdown PurchaseSplitEquallyAllActionType
     ( constDyn
@@ -183,7 +183,7 @@ addAction users groups = do
       PurchaseItemizedSplitActionType
         -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users
       PaymentTransactionActionType
-        -> fmap (fmap PaymentAction)  $ addPaymentTransaction users groups
+        -> addPaymentTransaction users
 
 userInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -356,23 +356,20 @@ addItemizedSplitPurchase users = do
 
 addPaymentTransaction
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Transaction)
-addPaymentTransaction users groups = do
+  => Dynamic t [User] -> m (Event t Action)
+addPaymentTransaction users = do
   el "h3" $ text "Add payment"
   debitUser  <- userInput "Debit User"  users
   creditUser <- userInput "Credit User" users
   rec
     amount <- amountInput addEv
     addEv  <- button "Add payment"
-    let transaction = do
-          groups <- validDyn groups
-          let groupsByUsersVal = groupsByUsers groups
-          debitAccount <- userToAccount groupsByUsersVal <$> debitUser
-          creditAccount <- userToAccount groupsByUsersVal <$> creditUser
-          amount <- amount
-          return
-            $ Transaction debitAccount creditAccount amount TxReasonPayment
-  return $ tagValid transaction addEv
+    let action
+          =   PaymentAction
+          <$> debitUser
+          <*> creditUser
+          <*> amount
+  return $ tagValid action addEv
 
 actionWidgetPayedFor
     ( PurchaseAction
@@ -420,8 +417,12 @@ actionWidget
   text " split in "
   text . T.pack . show . length $ splits
   text " items"
-actionWidget a = do
-  text . T.pack . show $ a
+actionWidget ( PaymentAction debitUser creditUser amount ) = do
+  text . T.pack $ debitUser
+  text " payed "
+  text . T.pack $ creditUser
+  text " "
+  text . T.pack . show $ amount
 
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -429,7 +430,7 @@ manageActions
 manageActions users groups = do
   el "h2" $ text "Manage actions"
   rec
-    addActionEv <- addAction users groups
+    addActionEv <- addAction users
     actionsList <-
       foldDyn ($) []
       ( mergeWith (.)
