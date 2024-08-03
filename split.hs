@@ -16,7 +16,7 @@ import qualified Data.Map                   as M
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           MoneySplit
-import           Reflex.Dom
+import           Reflex.Dom                 hiding (Group)
 import           SplitReport
 import           Text.Read                  (readMaybe)
 
@@ -52,11 +52,11 @@ deleteX item = do
 
 manageUsers
   :: (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => m (Dynamic t [Text])
+  => m (Dynamic t [User])
 manageUsers = do
   el "h2" $ text "Manage users"
   rec
-    addUserEv <- resettableInput addUserButtonEv
+    addUserEv <- fmap (fmap T.unpack) . resettableInput $ addUserButtonEv
     addUserButtonEv <- button "Add user"
     users <-
       foldDyn ($) []
@@ -65,12 +65,12 @@ manageUsers = do
         , delete <$> deleteUserEv
         ]
       )
-    deleteUserEv <- dynList (text . id) users
+    deleteUserEv <- dynList (text . T.pack) users
   return users
 
 manageGroups
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Dynamic t [[Text]])
+  => Dynamic t [User] -> m (Dynamic t [[User]])
 manageGroups users = do
   el "h2" $ text "Manage user groups"
   el "h3" $ text "Select users for the group"
@@ -83,7 +83,7 @@ manageGroups users = do
     newGroupUsers <- selectUsers "groups" usersNotInGroups
     usersNotInGroupsOnNewUsers <-
       holdDyn [] ((tag . current) usersNotInGroups (updated newGroupUsers))
-    let validation :: [Text] -> Dynamic t (Either Text [Text])
+    let validation :: [User] -> Dynamic t (Either Text [User])
           = \newGroupUsers ->
               ffor usersNotInGroupsOnNewUsers $ \usersNotInGroups ->
                 if null usersNotInGroups
@@ -94,13 +94,13 @@ manageGroups users = do
                        [_] -> Left $ "Only one user is selected. "
                               `T.append` "At least 2 users necessary for a group"
                        (_) -> Right $ newGroupUsers
-    let newGroupUsersValid :: ValidInput t [Text]
+    let newGroupUsersValid :: ValidInput t [User]
           = ExceptT $ validation =<< newGroupUsers
     addGroupButtonEv <- button "Add group"
     let addGroupEv = tagValid newGroupUsersValid addGroupButtonEv
     let error = fmap (either id (const "")) . runExceptT $ newGroupUsersValid
     dynText =<< holdDyn "" (tagPromptlyDyn error addGroupButtonEv)
-    userGroups :: Dynamic t [[Text]] <-
+    userGroups :: Dynamic t [[User]] <-
       foldDyn ($) []
       ( mergeWith (.)
         [ (:)    <$> addGroupEv
@@ -109,10 +109,14 @@ manageGroups users = do
       )
     el "h3" $ text "User groups"
     deleteGroupEv <-
-      dynList (text . T.pack . printUsersList . map T.unpack) userGroups
+      dynList (text . T.pack . printUsersList) userGroups
   return userGroups
 
 type ValidInput t a = ExceptT Text (Dynamic t) a
+
+-- | Assume the dynamic value is valid without validation
+validDyn :: Reflex t => Dynamic t a -> ValidInput t a
+validDyn d = ExceptT (Right <$> d)
 
 validInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m)
@@ -142,6 +146,11 @@ dynToDyn :: (DomBuilder t m, MonadHold t m, PostBuild t m)
 dynToDyn initVal dynWidget =
   join <$> (holdDyn (constDyn initVal) =<< dyn dynWidget)
 
+dynToEvent
+  :: (Adjustable t m, NotReady t m, PostBuild t m, MonadHold t m)
+  => Dynamic t (m (Event t a)) -> m (Event t a)
+dynToEvent dynWidget = switchHold never =<< dyn dynWidget
+
 data ActionType
   = PurchaseSplitEquallyAllActionType
   | PurchaseSplitEquallyActionType
@@ -149,9 +158,9 @@ data ActionType
   | PaymentTransactionActionType deriving (Eq, Ord, Show)
 
 addAction
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Event t Action)
-addAction users = do
+  :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
+addAction users groups = do
   text "Choose action type: "
   dropdownEl <- dropdown PurchaseSplitEquallyAllActionType
     ( constDyn
@@ -173,11 +182,15 @@ addAction users = do
         -> fmap (fmap PurchaseAction) $ addSplitEquallyPurchase users
       PurchaseItemizedSplitActionType
         -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users
-      PaymentTransactionActionType -> error "Not implemented"
+      PaymentTransactionActionType
+        -> fmap (fmap PaymentAction)  $ addPaymentTransaction users groups
 
-userInput users = do
-  text "User: "
-  user :: ValidInput t Text <- ExceptT <$> dynToDyn
+userInput
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Text -> Dynamic t [User] -> m (ValidInput t User)
+userInput label users = do
+  text $ label `T.append` ": "
+  user :: ValidInput t User <- ExceptT <$> dynToDyn
     ( Left "" )
     ( ffor users $ \users -> do
         if null users
@@ -187,7 +200,7 @@ userInput users = do
           else do
             el <- dropdown
                   (head users)
-                  (constDyn . M.fromList $ zip users users)
+                  (constDyn . M.fromList $ zip users (map T.pack users))
                   def
             return $ Right <$> value el
     )
@@ -215,24 +228,24 @@ amountInput addEv = do
 
 addSplitAllPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Event t Purchase)
+  => Dynamic t [User] -> m (Event t Purchase)
 addSplitAllPurchase users = do
   el "h3" $ text "Add \"split all\" purchase"
-  user <- userInput users
+  user <- userInput "User" users
   rec
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
     addEv  <- button "Add purchase"
   let purchase
         = Purchase
-        <$> fmap (T.unpack) user
+        <$> user
         <*> fmap (T.unpack) desc
         <*> amount
         <*> pure SplitEquallyAll
   return $ tagValid purchase addEv
 
 selectUsers  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [Text] -> m (Dynamic t [Text])
+  => String -> Dynamic t [User] -> m (Dynamic t [User])
 selectUsers idPrefix users
   = dynToDyn [] . ffor users $ \users -> do
       selectedCbs :: Dynamic t [Bool] <-
@@ -242,11 +255,11 @@ selectUsers idPrefix users
             & inputElementConfig_elementConfig
             . elementConfig_initialAttributes
             .~ (  "type" =: "checkbox"
-               <> "id" =: idPrefix `T.append` "_" `T.append` user)
+               <> "id" =: T.pack (idPrefix ++ "_" ++ user))
           elAttr "label"
-              ("for" =: idPrefix `T.append` "_" `T.append` user) $ do
+              ("for" =: T.pack (idPrefix ++ "_" ++ user)) $ do
             text " "
-            text user
+            text . T.pack $ user
           el "br" blank
           return . _inputElement_checked $ cb
       return . fmap (map snd . filter fst)
@@ -254,36 +267,36 @@ selectUsers idPrefix users
 
 addSplitEquallyPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Event t Purchase)
+  => Dynamic t [User] -> m (Event t Purchase)
 addSplitEquallyPurchase users = do
   el "h3" $ text "Add \"split equally\" purchase"
-  user <- userInput users
+  user <- userInput "User" users
   rec
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
-    selectedUsers :: ValidInput t [Text]
+    selectedUsers :: ValidInput t [User]
         <- fmap (ExceptT . fmap Right) $ selectUsers "split" users
     addEv <- button "Add purchase"
   let purchase
         = Purchase
-        <$> fmap (T.unpack) user
+        <$> user
         <*> fmap (T.unpack) desc
         <*> amount
-        <*> (SplitEqually . fmap T.unpack <$> selectedUsers)
+        <*> (SplitEqually <$> selectedUsers)
   return $ tagValid purchase addEv
 
 addSplitItem
   ::(DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Event t SplitItem)
+  => Dynamic t [User] -> m (Event t SplitItem)
 addSplitItem users = do
-  user   <- userInput users
+  user   <- userInput "User" users
   rec
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
     addEv  <- button "Add split item"
   let splitItem
         = SplitItem
-        <$> fmap (T.unpack) user
+        <$> user
         <*> fmap (T.unpack) desc
         <*> amount
   return $ tagValid splitItem addEv
@@ -296,7 +309,7 @@ splitWidget item = do
   text . T.pack . show . splitItemAmount $ item
 
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Dynamic t [SplitItem])
+  => Dynamic t [User] -> m (Dynamic t [SplitItem])
 manageSplitItems users = do
   addSplitItemEv <- addSplitItem users
   rec
@@ -313,10 +326,10 @@ manageSplitItems users = do
 
 addItemizedSplitPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> m (Event t Purchase)
+  => Dynamic t [User] -> m (Event t Purchase)
 addItemizedSplitPurchase users = do
   el "h3" $ text "Add \"itemized split\" purchase"
-  user <- userInput users
+  user <- userInput "User" users
   rec
     desc       <- descriptionInput addEv
     text "Amount: "
@@ -335,11 +348,31 @@ addItemizedSplitPurchase users = do
     addEv <- button "Add purchase"
   let purchase
         = Purchase
-        <$> fmap (T.unpack) user
+        <$> user
         <*> fmap (T.unpack) desc
         <*> (ExceptT . fmap (Right . sum . map splitItemAmount) $ splitItems)
         <*> (ExceptT . fmap (Right . ItemizedSplit) $ splitItems)
   return $ tagValid purchase addEv
+
+addPaymentTransaction
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Transaction)
+addPaymentTransaction users groups = do
+  el "h3" $ text "Add payment"
+  debitUser  <- userInput "Debit User"  users
+  creditUser <- userInput "Credit User" users
+  rec
+    amount <- amountInput addEv
+    addEv  <- button "Add payment"
+    let transaction = do
+          groups <- validDyn groups
+          let groupsByUsersVal = groupsByUsers groups
+          debitAccount <- userToAccount groupsByUsersVal <$> debitUser
+          creditAccount <- userToAccount groupsByUsersVal <$> creditUser
+          amount <- amount
+          return
+            $ Transaction debitAccount creditAccount amount TxReasonPayment
+  return $ tagValid transaction addEv
 
 actionWidgetPayedFor
     ( PurchaseAction
@@ -392,25 +425,25 @@ actionWidget a = do
 
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [Text] -> Dynamic t [[Text]] -> m (Dynamic t Actions)
+  => Dynamic t [User] -> Dynamic t [[User]] -> m (Dynamic t Actions)
 manageActions users groups = do
   el "h2" $ text "Manage actions"
-  addActionEv <- addAction users
   rec
-    actions <-
+    addActionEv <- addAction users groups
+    actionsList <-
       foldDyn ($) []
       ( mergeWith (.)
         [ (:) <$> addActionEv
         , delete <$> deleteActionEv
         ]
       )
+    let actions = Actions
+                  <$> users
+                  <*> groups
+                  <*> actionsList
     el "h3" $ text "Actions list"
-    deleteActionEv <- dynList actionWidget actions
-  return
-    $   Actions
-    <$> fmap (map T.unpack) users
-    <*> fmap (map (map T.unpack)) groups
-    <*> actions
+    deleteActionEv <- dynList actionWidget actionsList
+  return actions
 
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do
