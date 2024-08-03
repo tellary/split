@@ -55,7 +55,9 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Render splits] is 100% completed and starts on 2024-08-02
 [Implement payment transactions on UI] is 100% completed and starts on 2024-08-02 and requires 2 days
 2024-08-03 is open
-then [Require at least 2 users] is 0% completed
+[Require at least 2 users] is 100% completed and starts on 2024-08-03
+then [Validate users in "Manage users"] is 0% completed
+then [Maintain credit user /= debit user in "add payment"] is 0% completed
 then [Don't allow negative amounts] is 0% completed
 then [Don't allow "split equally" w/o users] is 0% completed
 then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed

@@ -193,10 +193,12 @@ userInput label users = do
   user :: ValidInput t User <- ExceptT <$> dynToDyn
     ( Left "" )
     ( ffor users $ \users -> do
-        if null users
+        if length users < 2
           then do
-            text "Please add a user first"
-            return . constDyn . Left $ "Please add a user first"
+            let msg = "At least two users required, "
+                      `T.append` "please add users in \"Manage users\""
+            text msg
+            return . constDyn . Left $ msg
           else do
             el <- dropdown
                   (head users)
