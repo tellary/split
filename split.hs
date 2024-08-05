@@ -20,17 +20,20 @@ import           Reflex.Dom                 hiding (Group)
 import           SplitReport
 import           Text.Read                  (readMaybe)
 
+
 resettableInput
-  :: (DomBuilder t m, MonadHold t m, MonadFix m)
-  => Event t a -> m (Event t Text)
-resettableInput submitEvent = do
+  :: forall t m a . (DomBuilder t m, MonadHold t m, MonadFix m)
+  => Event t a -> (Text -> Either Text Text)
+  -> m (ErrorDynamic t, Event t Text)
+resettableInput submitEvent validation = do
   rec
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
-    let evText = tagPromptlyDyn
-                 (value input)
-                 (leftmost [evEnter, () <$ submitEvent])
-  return evText
+    let validInput :: ValidDynamic t Text
+          = ExceptT (validation <$> (value input))
+    let evText = tagValid validInput (leftmost [evEnter, () <$ submitEvent])
+  error <- errorDyn submitEvent validInput
+  return (error, evText)
 
 dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
   => (a -> m ()) -> Dynamic t [a] -> m (Event t a)
@@ -56,8 +59,14 @@ manageUsers
 manageUsers = do
   el "h2" $ text "Manage users"
   rec
-    addUserEv <- fmap (fmap T.unpack) . resettableInput $ addUserButtonEv
+    (error, addUserEv) <- fmap (fmap (fmap (T.unpack . T.strip)))
+                 . resettableInput addUserButtonEv $ \user ->
+      if T.null . T.strip $ user
+      then Left $ "Empty users names are not allowed"
+      else Right user
     addUserButtonEv <- button "Add user"
+    text " "
+    dynText error
     users <-
       foldDyn ($) []
       ( mergeWith (.)
@@ -94,7 +103,7 @@ manageGroups users = do
                        [_] -> Left $ "Only one user is selected. "
                               `T.append` "At least 2 users necessary for a group"
                        (_) -> Right $ newGroupUsers
-    let newGroupUsersValid :: ValidInput t [User]
+    let newGroupUsersValid :: ValidDynamic t [User]
           = ExceptT $ validation =<< newGroupUsers
     addGroupButtonEv <- button "Add group"
     let addGroupEv = tagValid newGroupUsersValid addGroupButtonEv
@@ -112,29 +121,39 @@ manageGroups users = do
       dynList (text . T.pack . printUsersList) userGroups
   return userGroups
 
-type ValidInput t a = ExceptT Text (Dynamic t) a
+type ValidDynamic t a = ExceptT Text (Dynamic t) a
 
 -- | Assume the dynamic value is valid without validation
-validDyn :: Reflex t => Dynamic t a -> ValidInput t a
+validDyn :: Reflex t => Dynamic t a -> ValidDynamic t a
 validDyn d = ExceptT (Right <$> d)
+
+emptyError :: Reflex t => ValidDynamic t a
+emptyError = ExceptT . return . Left $ ""
+
+type ErrorDynamic t = Dynamic t Text
+
+errorDyn
+  :: forall t m a b . (Reflex t, MonadHold t m)
+  => Event t b -> ValidDynamic t a -> m (ErrorDynamic t)
+errorDyn submitEvent errorOrValue = do
+  let errorOrValueDyn :: Dynamic t (Either Text a) = runExceptT errorOrValue
+  let error :: Dynamic t Text = fmap (either id (const "")) errorOrValueDyn
+  holdDyn ""
+    ( tagPromptlyDyn error
+      ( leftmost [() <$ submitEvent, () <$ updated errorOrValueDyn] )
+    )
 
 validInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m)
-  => Event t b -> (Text -> Either Text a) -> m (ValidInput t a)
+  => Event t b -> (Text -> Either Text a) -> m (ValidDynamic t a)
 validInput submitEvent validation = do
   inputValue :: Dynamic t Text <- value <$> inputElement def
-  let errorOrValue = fmap validation inputValue
-  let error = fmap (either id (const "")) errorOrValue
-  errorOnSubmitOrChange <-
-    holdDyn ""
-    ( tagPromptlyDyn error
-      ( leftmost [() <$ submitEvent, () <$ updated inputValue] )
-    )
+  let errorOrValue = ExceptT $ fmap validation inputValue
   text " "
-  dynText errorOnSubmitOrChange
-  return . ExceptT $ errorOrValue
+  dynText =<< errorDyn submitEvent errorOrValue
+  return errorOrValue
 
-tagValid :: Reflex t => ValidInput t a -> Event t b -> Event t a
+tagValid :: Reflex t => ValidDynamic t a -> Event t b -> Event t a
 tagValid errorOrValueT submitEvent
   = mapMaybe id
   . fmap (either (const Nothing) Just) -- Event Either -> Event Maybe
@@ -187,10 +206,10 @@ addAction users = do
 
 userInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> m (ValidInput t User)
+  => Text -> Dynamic t [User] -> m (ValidDynamic t User)
 userInput label users = do
   text $ label `T.append` ": "
-  user :: ValidInput t User <- ExceptT <$> dynToDyn
+  user :: ValidDynamic t User <- ExceptT <$> dynToDyn
     ( Left "" )
     ( ffor users $ \users -> do
         if length users < 2
@@ -276,7 +295,7 @@ addSplitEquallyPurchase users = do
   rec
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
-    selectedUsers :: ValidInput t [User]
+    selectedUsers :: ValidDynamic t [User]
         <- fmap (ExceptT . fmap Right) $ selectUsers "split" users
     addEv <- button "Add purchase"
   let purchase

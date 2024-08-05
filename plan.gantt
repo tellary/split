@@ -56,7 +56,8 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Implement payment transactions on UI] is 100% completed and starts on 2024-08-02 and requires 2 days
 2024-08-03 is open
 [Require at least 2 users] is 100% completed and starts on 2024-08-03
-then [Validate users in "Manage users"] is 0% completed
+[Validate users in "Manage users"] is 0% completed and starts on 2024-08-03 and ends on 2024-08-05
+then [Display errors in "Manage user groups" immediately after a checkbox is touched] is 0% completed
 then [Maintain credit user /= debit user in "add payment"] is 0% completed
 then [Don't allow negative amounts] is 0% completed
 then [Don't allow "split equally" w/o users] is 0% completed
