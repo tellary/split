@@ -19,7 +19,8 @@ import           MoneySplit
 import           Reflex.Dom                 hiding (Group)
 import           SplitReport
 import           Text.Read                  (readMaybe)
-
+import qualified ValidDynamic
+import           ValidDynamic               (ErrorDynamic, validDyn)
 
 resettableInput
   :: forall t m a . (DomBuilder t m, MonadHold t m, MonadFix m)
@@ -29,10 +30,10 @@ resettableInput submitEvent validation = do
   rec
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
-    let validInput :: ValidDynamic t Text
-          = ExceptT (validation <$> (value input))
-    let evText = tagValid validInput (leftmost [evEnter, () <$ submitEvent])
-  error <- errorDyn submitEvent validInput
+    let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
+    validInput <- validDyn "" submitOrEnterEv (updated . value $ input) validation
+    let evText = ValidDynamic.tagValid validInput submitOrEnterEv
+  error <- ValidDynamic.errorDyn submitEvent validInput
   return (error, evText)
 
 dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
@@ -122,15 +123,6 @@ manageGroups users = do
   return userGroups
 
 type ValidDynamic t a = ExceptT Text (Dynamic t) a
-
--- | Assume the dynamic value is valid without validation
-validDyn :: Reflex t => Dynamic t a -> ValidDynamic t a
-validDyn d = ExceptT (Right <$> d)
-
-emptyError :: Reflex t => ValidDynamic t a
-emptyError = ExceptT . return . Left $ ""
-
-type ErrorDynamic t = Dynamic t Text
 
 errorDyn
   :: forall t m a b . (Reflex t, MonadHold t m)

@@ -1,0 +1,36 @@
+@startuml
+
+state "JustSubmitted" as JustSubmitted_valid
+JustSubmitted_valid : State valid = True
+JustSubmitted_valid : Error displayed = False
+[*] -> JustSubmitted_valid
+
+state "JustSubmitted" as JustSubmitted_invalid
+JustSubmitted_invalid : State valid = False
+JustSubmitted_invalid : Error displayed = False
+
+state "DataChanged" as DataChanged_valid
+DataChanged_valid : State valid = True
+DataChanged_valid : Error displayed = False
+
+state "DataChanged" as DataChanged_invalid
+DataChanged_invalid : State valid = False
+DataChanged_invalid : Error displayed = True
+
+JustSubmitted_valid --> DataChanged_valid : User touched UI input elements,\nnew input valid
+JustSubmitted_valid --> DataChanged_invalid : User touched UI input elements,\nnew input invalid
+JustSubmitted_valid --> JustSubmitted_valid : User presses a "submit button"
+
+JustSubmitted_invalid --> DataChanged_valid : User touched UI input elements,\nnew input valid
+JustSubmitted_invalid --> DataChanged_invalid : User touched UI input elements,\nnew input invalid
+JustSubmitted_invalid --> JustSubmitted_invalid : User presses a "submit button"
+
+DataChanged_valid --> DataChanged_valid : User touched UI input elements,\nnew input valid
+DataChanged_valid --> DataChanged_invalid : User touched UI input elements,\nnew input invalid
+DataChanged_valid --> JustSubmitted_valid : User presses a "submit button",\nUI modifies input to a valid state
+DataChanged_valid --> JustSubmitted_invalid : User presses a "submit button",\nUI modifies input to an invalid state
+
+DataChanged_invalid --> DataChanged_valid : User touched UI input elements,\nnew input valid
+DataChanged_invalid --> DataChanged_invalid : User touched UI input elements,\nnew input invalid
+DataChanged_invalid --> DataChanged_invalid : User presses a "submit button"
+@enduml
