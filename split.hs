@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BlockArguments #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
@@ -23,7 +24,7 @@ import qualified ValidDynamic
 import           ValidDynamic               (ErrorDynamic, validDyn)
 
 resettableInput
-  :: (DomBuilder t m, MonadHold t m, MonadFix m)
+  :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
   => Event t a -> Event t b -> (Text -> Either Text Text)
   -> m (ErrorDynamic t, Event t Text)
 resettableInput submitEvent resetEvent validation = do
@@ -31,14 +32,15 @@ resettableInput submitEvent resetEvent validation = do
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
-    validInput <-
+    validInput :: ValidDynamic.ValidDynamic t Text <-
       validDyn
-        ""
-        submitOrEnterEv
-        resetEvent
+        "" 0
+        (1 <$ submitOrEnterEv)
+        (0 <$ resetEvent)
         (updated . value $ input)
         validation
-    let evText = ValidDynamic.tagValid validInput submitOrEnterEv
+    let evText :: Event t Text
+          = ValidDynamic.tagValid validInput submitOrEnterEv
   error <- ValidDynamic.errorDyn submitEvent validInput
   return (error, evText)
 
@@ -97,26 +99,22 @@ manageGroups users = do
             . filter (not . \user -> any (\group -> user `elem` group) groups)
             $ users
     newGroupUsers <- selectUsers "groups" usersNotInGroups
-    usersNotInGroupsOnNewUsers <-
-      holdDyn [] ((tag . current) usersNotInGroups (updated newGroupUsers))
-    let validation :: [User] -> Dynamic t (Either Text [User])
-          = \newGroupUsers ->
-              ffor usersNotInGroupsOnNewUsers $ \usersNotInGroups ->
-                if null usersNotInGroups
-                then Left ""
-                else case newGroupUsers of
-                       []  -> Left $ "No users selected. "
-                              `T.append` "At least 2 users necessary for a group"
-                       [_] -> Left $ "Only one user is selected. "
-                              `T.append` "At least 2 users necessary for a group"
-                       (_) -> Right $ newGroupUsers
-    let newGroupUsersValid :: ValidDynamic t [User]
-          = ExceptT $ validation =<< newGroupUsers
+    newGroupUsersValid :: ValidDynamic.ValidDynamic t [User]
+      <- validDyn
+         [] 1
+         (1 <$ addGroupButtonEv)
+         (1 <$ leftmost [deleteGroupEv, updated users] )
+         (updated $ newGroupUsers)
+         $ \case
+             [ ] -> Left $ "No users selected. "
+                    `T.append` "At least 2 users necessary for a group"
+             [_] -> Left $ "Only one user is selected. "
+                    `T.append` "At least 2 users necessary for a group"
+             gs  -> Right $ gs
     addGroupButtonEv <- button "Add group"
-    let addGroupEv = tagValid newGroupUsersValid addGroupButtonEv
-    let error = fmap (either id (const "")) . runExceptT $ newGroupUsersValid
-    dynText =<< holdDyn "" (tagPromptlyDyn error addGroupButtonEv)
-    userGroups :: Dynamic t [[User]] <-
+    let addGroupEv = ValidDynamic.tagValid newGroupUsersValid addGroupButtonEv
+    dynText =<< ValidDynamic.errorDyn addGroupButtonEv newGroupUsersValid
+    userGroups :: Dynamic t [Group] <-
       foldDyn ($) []
       ( mergeWith (.)
         [ (:)    <$> addGroupEv
@@ -268,7 +266,7 @@ selectUsers  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
 selectUsers idPrefix users
   = dynToDyn [] . ffor users $ \users -> do
       selectedCbs :: Dynamic t [Bool] <-
-        fmap sequence . forM users $ \user -> do
+        fmap distributeListOverDyn . forM users $ \user -> do
           cb <- inputElement
             $ def
             & inputElementConfig_elementConfig

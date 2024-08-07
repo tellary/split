@@ -56,9 +56,11 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Implement payment transactions on UI] is 100% completed and starts on 2024-08-02 and requires 2 days
 2024-08-03 is open
 [Require at least 2 users] is 100% completed and starts on 2024-08-03
-[Learn Reflex FRP: Stateful error handling] starts on 2024-08-05 and ends on 2024-08-07 and is 0% completed
+[Learn Reflex FRP: Stateful error handling] starts on 2024-08-05 and ends on 2024-08-09 and is 0% completed
 2024-08-06 is closed
-[Validate users in "Manage users"] is 0% completed and starts on 2024-08-03 and ends on 2024-08-07
+[Validate users in "Manage users"] is 0% completed and starts on 2024-08-03 and ends on 2024-08-09
+[Validate users in "Manage users"] pauses on 2024-08-07
+[Validate users in "Manage users"] pauses on 2024-08-08
 then [Display errors in "Manage user groups" immediately after a checkbox is touched] is 0% completed
 then [Prevent deletion of a user referenced in 'actions'] is 0% completed and requires 2 days
 then [Prevent deletion of a user referenced in 'groups'] is 0% completed and requires 1 day

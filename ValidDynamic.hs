@@ -16,14 +16,14 @@ import Reflex.Dom        (Dynamic, Event, MonadHold, Reflex, foldDyn, holdDyn,
                           updated)
 import Text.Printf       (printf)
 
+data ErrorState = Reset Int | Submitted Int | DataChanged deriving Show
 data ValidValue a
-  = Submitted Int (Either Text a)
-  | DataChanged (Either Text a)
+  = ValidValue ErrorState (Either Text a)
   deriving Show
 
 type ValidDynamic t a = Dynamic t (ValidValue a)
 
-traceEnabled = False
+traceEnabled = True
 
 traceEventIfEnabled :: (Show a, Reflex t) => String -> Event t a -> Event t a
 traceEventIfEnabled = if traceEnabled then traceEvent else flip const
@@ -34,26 +34,33 @@ traceUpdate :: Show a => String -> a -> a -> a
 traceUpdate tag old new
   = traceIfEnabled (printf "%s: %s -> %s" tag (show old) (show new)) new
 
-onSubmit v@(DataChanged (Left _))
+onSubmit skipUpdateCount v@(ValidValue DataChanged e@(Right _))
+  = traceUpdate "onSubmit" v $ ValidValue (Reset skipUpdateCount) e
+onSubmit _ v@(ValidValue DataChanged (Left _))
   = traceUpdate "onSubmit" v $ v
-onSubmit v@(DataChanged (Right a))
-  = traceUpdate "onSubmit" v $ Submitted 0 (Right a)
-onSubmit v@(Submitted i a)
-  = traceUpdate "onSubmit" v $ Submitted (i + 1) a
+onSubmit _ v@(ValidValue (Submitted skipUpdateCount) e@(Right _))
+  = traceUpdate "onSubmit" v $ ValidValue (Reset skipUpdateCount) e
+onSubmit _ v@(ValidValue (Submitted skipUpdateCount) e@(Left _))
+  = traceUpdate "onSubmit" v $ ValidValue (Submitted skipUpdateCount) e
+onSubmit skipUpdateCount v@(ValidValue (Reset _) e)
+  = traceUpdate "onSubmit" v $ ValidValue (Submitted skipUpdateCount) e
+  
+onReset skipUpdateCount v
+  = traceUpdate "onReset" v
+    $ ValidValue (Reset skipUpdateCount) (validValueEither v)
 
-onReset v@(DataChanged (Left _))
-  = traceUpdate "onReset" v $ v
-onReset v@(DataChanged (Right a))
-  = traceUpdate "onReset" v $ Submitted 0 (Right a)
-onReset v@(Submitted _ a)
-  = traceUpdate "onReset" v $ Submitted 1 a
-
-onUpdate validation newVal v@(DataChanged _)
-  = traceUpdate "onUpdate" v $ DataChanged (validation newVal)
-onUpdate validation newVal v@(Submitted i _)
-  = traceUpdate "onUpdate" v $ if i == 0
-                               then Submitted 1 (validation newVal)
-                               else DataChanged (validation newVal)
+onUpdate validation newVal v@(ValidValue DataChanged _)
+  = traceUpdate "onUpdate" v $ ValidValue DataChanged (validation newVal)
+onUpdate validation newVal v@(ValidValue (Submitted i) _)
+  = traceUpdate "onUpdate" v
+    $ if i == 0
+      then ValidValue DataChanged (validation newVal)
+      else ValidValue (Submitted (i - 1)) (validation newVal)
+onUpdate validation newVal v@(ValidValue (Reset i) _)
+  = traceUpdate "onUpdate" v
+    $ if i == 0
+      then ValidValue DataChanged (validation newVal)
+      else ValidValue (Reset (i - 1)) (validation newVal)
 
 -- | Create "valid dynamic" with stateful errors
 --
@@ -66,40 +73,47 @@ onUpdate validation newVal v@(Submitted i _)
 -- For example, given a form with certain input fields with empty inital values
 -- and a submit button, we don't show an error that the field is empty before
 -- we a submit event occurs.
+--
+-- 'submitEvent' and 'resetEvent' carry "skip update count". This counts tells
+-- the 'validDyn' function how many updates should be skipped after an event.
+-- For example, when we add a user group, we need to skip one update because
+-- addition of a group updates users selected for a new group -- users included
+-- in the group are no longer part of the available selection.
 validDyn
   :: (Show a, Reflex t, MonadHold t m, MonadFix m)
-  => a -> Event t b -> Event t c -> Event t a -> (a -> Either Text a)
+  => a -> Int -> Event t Int -> Event t Int -> Event t a -> (a -> Either Text a)
   -> m (ValidDynamic t a)
-validDyn initialValue submitEvent resetEvent updateEvent validation
-  = foldDyn ($) (Submitted 1 (validation initialValue))
+validDyn
+      initialValue initialSkipUpdateCount
+      submitEvent resetEvent updateEvent
+      validation
+  = foldDyn ($)
+    (ValidValue (Reset initialSkipUpdateCount) (validation initialValue))
     ( leftmost
-      [ onSubmit <$ submitEvent
-      , onReset <$ resetEvent
+      [ onSubmit            <$> submitEvent
+      , onReset             <$> resetEvent
       , onUpdate validation <$> updateEvent
       ]
     )
 
-eitherValidValue (Submitted _ e) = e
-eitherValidValue (DataChanged e) = e
+validValueEither (ValidValue _ e) = e
 
-isValidValue = isRight . eitherValidValue
+isValidValue = isRight . validValueEither
 
-maybeValidValue = either (const Nothing) Just . eitherValidValue
-
-isDataChanged (DataChanged _) = True
-isDataChanged (Submitted _ _) = False
+maybeValidValue = either (const Nothing) Just . validValueEither
 
 type ErrorDynamic t = Dynamic t Text
+
+errorStr = either id (const "")
 
 errorDyn
   :: forall t m a b . (Reflex t, MonadHold t m)
   => Event t b -> ValidDynamic t a -> m (ErrorDynamic t)
 errorDyn submitEvent validDynamic = do
   let error :: Dynamic t Text = validDynamic >>= \case
-        Submitted i errorOrValue
-          | i < 2 -> return ""
-          | otherwise -> return . either id (const "") $ errorOrValue
-        DataChanged errorOrValue -> return . either id (const "") $ errorOrValue
+        ValidValue (Submitted _) e -> return . errorStr $ e
+        ValidValue (DataChanged) e -> return . errorStr $ e
+        ValidValue (Reset     _) _ -> return ""
   holdDyn ""
     ( tagPromptlyDyn error
       ( leftmost [() <$ submitEvent, () <$ updated validDynamic] )
