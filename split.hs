@@ -23,15 +23,21 @@ import qualified ValidDynamic
 import           ValidDynamic               (ErrorDynamic, validDyn)
 
 resettableInput
-  :: forall t m a . (DomBuilder t m, MonadHold t m, MonadFix m)
-  => Event t a -> (Text -> Either Text Text)
+  :: (DomBuilder t m, MonadHold t m, MonadFix m)
+  => Event t a -> Event t b -> (Text -> Either Text Text)
   -> m (ErrorDynamic t, Event t Text)
-resettableInput submitEvent validation = do
+resettableInput submitEvent resetEvent validation = do
   rec
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
-    validInput <- validDyn "" submitOrEnterEv (updated . value $ input) validation
+    validInput <-
+      validDyn
+        ""
+        submitOrEnterEv
+        resetEvent
+        (updated . value $ input)
+        validation
     let evText = ValidDynamic.tagValid validInput submitOrEnterEv
   error <- ValidDynamic.errorDyn submitEvent validInput
   return (error, evText)
@@ -61,7 +67,7 @@ manageUsers = do
   el "h2" $ text "Manage users"
   rec
     (error, addUserEv) <- fmap (fmap (fmap (T.unpack . T.strip)))
-                 . resettableInput addUserButtonEv $ \user ->
+                 . resettableInput addUserButtonEv deleteUserEv $ \user ->
       if T.null . T.strip $ user
       then Left $ "Empty users names are not allowed"
       else Right user

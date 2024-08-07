@@ -41,6 +41,13 @@ onSubmit v@(DataChanged (Right a))
 onSubmit v@(Submitted i a)
   = traceUpdate "onSubmit" v $ Submitted (i + 1) a
 
+onReset v@(DataChanged (Left _))
+  = traceUpdate "onReset" v $ v
+onReset v@(DataChanged (Right a))
+  = traceUpdate "onReset" v $ Submitted 0 (Right a)
+onReset v@(Submitted _ a)
+  = traceUpdate "onReset" v $ Submitted 1 a
+
 onUpdate validation newVal v@(DataChanged _)
   = traceUpdate "onUpdate" v $ DataChanged (validation newVal)
 onUpdate validation newVal v@(Submitted i _)
@@ -48,14 +55,26 @@ onUpdate validation newVal v@(Submitted i _)
                                then Submitted 1 (validation newVal)
                                else DataChanged (validation newVal)
 
+-- | Create "valid dynamic" with stateful errors
+--
+-- The "valid dynamic" holds an a valid value if the `validation` function
+-- returns `Right`. Or else, it holds an error. But the error is stateful,
+-- it holds information if the input data is changed or a submit event was
+-- sent. The related `errorDyn` function uses this information to avoid
+-- showing errors before submit event occurs.
+--
+-- For example, given a form with certain input fields with empty inital values
+-- and a submit button, we don't show an error that the field is empty before
+-- we a submit event occurs.
 validDyn
   :: (Show a, Reflex t, MonadHold t m, MonadFix m)
-  => a -> Event t b -> Event t a -> (a -> Either Text a)
+  => a -> Event t b -> Event t c -> Event t a -> (a -> Either Text a)
   -> m (ValidDynamic t a)
-validDyn initialValue submitEvent updateEvent validation
+validDyn initialValue submitEvent resetEvent updateEvent validation
   = foldDyn ($) (Submitted 1 (validation initialValue))
     ( leftmost
       [ onSubmit <$ submitEvent
+      , onReset <$ resetEvent
       , onUpdate validation <$> updateEvent
       ]
     )
