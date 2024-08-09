@@ -16,14 +16,34 @@ import Reflex.Dom        (Dynamic, Event, MonadHold, Reflex, foldDyn, holdDyn,
                           updated)
 import Text.Printf       (printf)
 
-data ErrorState = Reset Int | Submitted Int | DataChanged deriving Show
+data ErrorState
+  = DataChanged | Submitted Int | Reset Int deriving (Show, Eq, Ord)
 data ValidValue a
   = ValidValue ErrorState (Either Text a)
   deriving Show
 
-type ValidDynamic t a = Dynamic t (ValidValue a)
+instance Functor ValidValue where
+  fmap f (ValidValue err either) = ValidValue err (fmap f either)
 
-traceEnabled = True
+instance Applicative ValidValue where
+  pure = ValidValue DataChanged . Right
+  ValidValue err1 ef <*> ValidValue err2 e
+    = ValidValue (min err1 err2) (ef <*> e)
+
+newtype ValidDynamic t a
+  = ValidDynamic { getDynWithValidValue :: Dynamic t (ValidValue a) }
+
+instance Reflex t => Functor (ValidDynamic t) where
+  fmap f (ValidDynamic d) = ValidDynamic $ fmap (fmap f) d
+
+instance Reflex t => Applicative (ValidDynamic t) where
+  pure = fromValue
+  ValidDynamic f <*> (ValidDynamic d) = ValidDynamic $ do
+    vf <- f
+    v  <- d
+    return $ vf <*> v
+
+traceEnabled = False
 
 traceEventIfEnabled :: (Show a, Reflex t) => String -> Event t a -> Event t a
 traceEventIfEnabled = if traceEnabled then traceEvent else flip const
@@ -80,14 +100,14 @@ onUpdate validation newVal v@(ValidValue (Reset i) _)
 -- addition of a group updates users selected for a new group -- users included
 -- in the group are no longer part of the available selection.
 validDyn
-  :: (Show a, Reflex t, MonadHold t m, MonadFix m)
-  => a -> Int -> Event t Int -> Event t Int -> Event t a -> (a -> Either Text a)
-  -> m (ValidDynamic t a)
+  :: (Show b, Reflex t, MonadHold t m, MonadFix m)
+  => a -> Int -> Event t Int -> Event t Int -> Event t a -> (a -> Either Text b)
+  -> m (ValidDynamic t b)
 validDyn
       initialValue initialSkipUpdateCount
       submitEvent resetEvent updateEvent
       validation
-  = foldDyn ($)
+  = ValidDynamic <$> foldDyn ($)
     (ValidValue (Reset initialSkipUpdateCount) (validation initialValue))
     ( leftmost
       [ onSubmit            <$> submitEvent
@@ -96,6 +116,16 @@ validDyn
       ]
     )
 
+fromDynamicEither :: Reflex t => Dynamic t (Either Text a) -> ValidDynamic t a
+fromDynamicEither
+  = ValidDynamic . fmap (\e -> ValidValue DataChanged e)
+
+fromDynamic :: Reflex t => Dynamic t a -> ValidDynamic t a
+fromDynamic
+  = ValidDynamic . fmap (\a -> ValidValue DataChanged (Right a))
+
+fromValue :: Reflex t => a -> ValidDynamic t a
+fromValue a = ValidDynamic (pure (ValidValue DataChanged (Right a)))
 validValueEither (ValidValue _ e) = e
 
 isValidValue = isRight . validValueEither
@@ -109,7 +139,7 @@ errorStr = either id (const "")
 errorDyn
   :: forall t m a b . (Reflex t, MonadHold t m)
   => Event t b -> ValidDynamic t a -> m (ErrorDynamic t)
-errorDyn submitEvent validDynamic = do
+errorDyn submitEvent (ValidDynamic validDynamic) = do
   let error :: Dynamic t Text = validDynamic >>= \case
         ValidValue (Submitted _) e -> return . errorStr $ e
         ValidValue (DataChanged) e -> return . errorStr $ e
@@ -120,7 +150,7 @@ errorDyn submitEvent validDynamic = do
     )
 
 tagValid :: (Show a, Reflex t) => ValidDynamic t a -> Event t b -> Event t a
-tagValid validInput submitEvent
+tagValid (ValidDynamic validInput) submitEvent
   = mapMaybe maybeValidValue
   . traceEventIfEnabled "tagValid"
   . tagPromptlyDyn validInput

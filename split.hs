@@ -8,20 +8,20 @@
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
-import           Control.Monad              (forM, join)
-import           Control.Monad.Fix          (MonadFix)
-import           Control.Monad.Trans.Except (ExceptT (ExceptT), runExceptT)
-import           Data.FileEmbed             (embedFile)
-import           Data.List                  (delete)
-import qualified Data.Map                   as M
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
+import           Control.Monad     (forM, join)
+import           Control.Monad.Fix (MonadFix)
+import           Data.FileEmbed    (embedFile)
+import           Data.List         (delete)
+import qualified Data.Map          as M
+import           Data.Text         (Text)
+import qualified Data.Text         as T
 import           MoneySplit
-import           Reflex.Dom                 hiding (Group)
+import           Reflex.Dom        hiding (Group)
 import           SplitReport
-import           Text.Read                  (readMaybe)
-import qualified ValidDynamic
-import           ValidDynamic               (ErrorDynamic, validDyn)
+import           Text.Read         (readMaybe)
+import           ValidDynamic      (ErrorDynamic, ValidDynamic, errorDyn,
+                                    fromDynamic, fromDynamicEither, tagValid,
+                                    validDyn)
 
 resettableInput
   :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
@@ -32,7 +32,7 @@ resettableInput submitEvent resetEvent validation = do
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
-    validInput :: ValidDynamic.ValidDynamic t Text <-
+    validInput :: ValidDynamic t Text <-
       validDyn
         "" 0
         (1 <$ submitOrEnterEv)
@@ -40,8 +40,8 @@ resettableInput submitEvent resetEvent validation = do
         (updated . value $ input)
         validation
     let evText :: Event t Text
-          = ValidDynamic.tagValid validInput submitOrEnterEv
-  error <- ValidDynamic.errorDyn submitEvent validInput
+          = tagValid validInput submitOrEnterEv
+  error <- errorDyn submitEvent validInput
   return (error, evText)
 
 dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
@@ -99,7 +99,7 @@ manageGroups users = do
             . filter (not . \user -> any (\group -> user `elem` group) groups)
             $ users
     newGroupUsers <- selectUsers "groups" usersNotInGroups
-    newGroupUsersValid :: ValidDynamic.ValidDynamic t [User]
+    newGroupUsersValid :: ValidDynamic t [User]
       <- validDyn
          [] 1
          (1 <$ addGroupButtonEv)
@@ -112,8 +112,8 @@ manageGroups users = do
                     `T.append` "At least 2 users necessary for a group"
              gs  -> Right $ gs
     addGroupButtonEv <- button "Add group"
-    let addGroupEv = ValidDynamic.tagValid newGroupUsersValid addGroupButtonEv
-    dynText =<< ValidDynamic.errorDyn addGroupButtonEv newGroupUsersValid
+    let addGroupEv = tagValid newGroupUsersValid addGroupButtonEv
+    dynText =<< errorDyn addGroupButtonEv newGroupUsersValid
     userGroups :: Dynamic t [Group] <-
       foldDyn ($) []
       ( mergeWith (.)
@@ -126,35 +126,17 @@ manageGroups users = do
       dynList (text . T.pack . printUsersList) userGroups
   return userGroups
 
-type ValidDynamic t a = ExceptT Text (Dynamic t) a
-
-errorDyn
-  :: forall t m a b . (Reflex t, MonadHold t m)
-  => Event t b -> ValidDynamic t a -> m (ErrorDynamic t)
-errorDyn submitEvent errorOrValue = do
-  let errorOrValueDyn :: Dynamic t (Either Text a) = runExceptT errorOrValue
-  let error :: Dynamic t Text = fmap (either id (const "")) errorOrValueDyn
-  holdDyn ""
-    ( tagPromptlyDyn error
-      ( leftmost [() <$ submitEvent, () <$ updated errorOrValueDyn] )
-    )
-
 validInput
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m)
-  => Event t b -> (Text -> Either Text a) -> m (ValidDynamic t a)
+  :: (Show a, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Event t b -> (Text -> Either Text a)
+  -> m (ValidDynamic t a)
 validInput submitEvent validation = do
-  inputValue :: Dynamic t Text <- value <$> inputElement def
-  let errorOrValue = ExceptT $ fmap validation inputValue
+  inputValue <- value <$> inputElement def
+  inputValueValid
+    <- validDyn "" 0 (0 <$ submitEvent) never (updated inputValue) validation
   text " "
-  dynText =<< errorDyn submitEvent errorOrValue
-  return errorOrValue
-
-tagValid :: Reflex t => ValidDynamic t a -> Event t b -> Event t a
-tagValid errorOrValueT submitEvent
-  = mapMaybe id
-  . fmap (either (const Nothing) Just) -- Event Either -> Event Maybe
-  . tagPromptlyDyn (runExceptT errorOrValueT)
-  $ submitEvent
+  dynText =<< errorDyn submitEvent inputValueValid
+  return inputValueValid
 
 dynToDyn :: (DomBuilder t m, MonadHold t m, PostBuild t m)
   => a -> Dynamic t (m (Dynamic t a)) -> m (Dynamic t a)
@@ -205,7 +187,7 @@ userInput
   => Text -> Dynamic t [User] -> m (ValidDynamic t User)
 userInput label users = do
   text $ label `T.append` ": "
-  user :: ValidDynamic t User <- ExceptT <$> dynToDyn
+  user <- fromDynamicEither <$> dynToDyn
     ( Left "" )
     ( ffor users $ \users -> do
         if length users < 2
@@ -224,6 +206,8 @@ userInput label users = do
   el "br" blank
   return user
 
+descriptionInput :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Event t a -> m (ValidDynamic t Text)
 descriptionInput addEv = do
   text "Description: "
   desc <- validInput addEv $ \txt ->
@@ -234,6 +218,8 @@ descriptionInput addEv = do
   el "br" blank
   return desc
 
+amountInput :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Event t a -> m (ValidDynamic t Amount)
 amountInput addEv = do
   text "Amount: "
   amount <- validInput addEv $ \txt ->
@@ -289,11 +275,10 @@ addSplitEquallyPurchase users = do
   el "h3" $ text "Add \"split equally\" purchase"
   user <- userInput "User" users
   rec
-    desc   <- descriptionInput addEv
-    amount <- amountInput addEv
-    selectedUsers :: ValidDynamic t [User]
-        <- fmap (ExceptT . fmap Right) $ selectUsers "split" users
-    addEv <- button "Add purchase"
+    desc          <- descriptionInput addEv
+    amount        <- amountInput addEv
+    selectedUsers <- fromDynamic <$> selectUsers "split" users
+    addEv         <- button "Add purchase"
   let purchase
         = Purchase
         <$> user
@@ -367,8 +352,8 @@ addItemizedSplitPurchase users = do
         = Purchase
         <$> user
         <*> fmap (T.unpack) desc
-        <*> (ExceptT . fmap (Right . sum . map splitItemAmount) $ splitItems)
-        <*> (ExceptT . fmap (Right . ItemizedSplit) $ splitItems)
+        <*> (fmap (sum . map splitItemAmount) . fromDynamic $ splitItems)
+        <*> (fmap ItemizedSplit . fromDynamic $ splitItems)
   return $ tagValid purchase addEv
 
 addPaymentTransaction
