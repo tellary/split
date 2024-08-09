@@ -15,31 +15,33 @@ import           Data.List         (delete)
 import qualified Data.Map          as M
 import           Data.Text         (Text)
 import qualified Data.Text         as T
+import           Data.These        (These (These))
 import           MoneySplit
 import           Reflex.Dom        hiding (Group)
 import           SplitReport
+import           Text.Printf       (printf)
 import           Text.Read         (readMaybe)
 import           ValidDynamic      (ErrorDynamic, ValidDynamic, errorDyn,
                                     fromDynamic, fromDynamicEither, tagValid,
                                     validDyn)
 
 resettableInput
-  :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
-  => Event t a -> Event t b -> (Text -> Either Text Text)
-  -> m (ErrorDynamic t, Event t Text)
+  :: forall t m a b c . (Show c, DomBuilder t m, MonadHold t m, MonadFix m)
+  => Event t a -> Event t b -> (Text -> Either Text c)
+  -> m (ErrorDynamic t, Event t c)
 resettableInput submitEvent resetEvent validation = do
   rec
     input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
-    validInput :: ValidDynamic t Text <-
+    validInput :: ValidDynamic t c <-
       validDyn
         "" 0
         (1 <$ submitOrEnterEv)
         (0 <$ resetEvent)
         (updated . value $ input)
         validation
-    let evText :: Event t Text
+    let evText :: Event t c
           = tagValid validInput submitOrEnterEv
   error <- errorDyn submitEvent validInput
   return (error, evText)
@@ -62,21 +64,36 @@ deleteX item = do
   text "]"
   return (item <$ domEvent Click deleteItemEl)  
 
+tupleToThese (a, b) = These a b
+
+fanTuple :: Reflex t => Event t (a, b) -> (Event t a, Event t b)
+fanTuple = fanThese . fmap tupleToThese
+
 manageUsers
-  :: (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  :: forall t m . (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => m (Dynamic t [User])
 manageUsers = do
   el "h2" $ text "Manage users"
   rec
-    (error, addUserEv) <- fmap (fmap (fmap (T.unpack . T.strip)))
-                 . resettableInput addUserButtonEv deleteUserEv $ \user ->
-      if T.null . T.strip $ user
-      then Left $ "Empty users names are not allowed"
-      else Right user
+    let errorAndAddUserEvDyn :: Dynamic t (m (ErrorDynamic t, Event t User))
+          = (users >>= \users ->
+                return . resettableInput addUserButtonEv deleteUserEv
+                $ \user ->
+                    let userStr = T.unpack . T.strip $ user
+                    in if null $ userStr
+                       then Left $ "Empty users names are not allowed"
+                       else if userStr `elem` users
+                            then Left (T.pack $ printf "User '%s' already exists" userStr)
+                            else Right userStr )
+    (   errorDynEv  :: Event t (ErrorDynamic t)
+      , addUserEvEv :: Event t (Event t User)
+      ) <- fanTuple <$> dyn errorAndAddUserEvDyn
+    addUserEv <- switchHold never addUserEvEv
+    error <- holdDyn "" =<< switchHold never (updated <$> errorDynEv)
     addUserButtonEv <- button "Add user"
     text " "
     dynText error
-    users <-
+    users :: Dynamic t [User] <-
       foldDyn ($) []
       ( mergeWith (.)
         [ (:) <$> addUserEv
