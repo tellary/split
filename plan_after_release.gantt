@@ -1,0 +1,21 @@
+@startgantt
+
+Project starts 2024-09-27
+saturday are closed
+sunday are closed
+
+[Don't allow "split equally" w/o users] is 0% completed
+then [Don't add purchase when only one user group exists] is 0% completed
+then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
+then [Preserve user, amount and description between different types of purchases] is 0% completed
+then [Implement editing of purchases] is 0% completed and requires 2 days
+then [Use standard Reflex functions to work with lists] is 0% completed
+then [Don't report users that have no transactions] is 0% completed
+then [Reset fields in action addition form] is 0% completed
+then [Add running total in itemized split report] is 0% completed
+then [Use 'mdash' HTML entity] is 0% completed
+then [Add user-centric report stat] is 0% completed
+then [Use Tailwind material] is 0% completed and requires 3 days
+then [Add context ads] is 0% completed
+
+@endgantt

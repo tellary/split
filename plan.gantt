@@ -61,52 +61,38 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Validate users in "Manage users"] is 100% completed and starts on 2024-08-03 and ends on 2024-08-09
 [Validate users in "Manage users"] pauses on 2024-08-07
 [Validate users in "Manage users"] pauses on 2024-08-08
-then [Make default credit user != debit user] is 0% completed
-then [Validate payment to self is not possible] is 0% completed
-then [Prevent deletion of a user referenced in 'actions'] is 0% completed and requires 2 days
-then [Prevent deletion of a user referenced in 'groups'] is 0% completed and requires 1 day
-then [Don't allow negative amounts] is 0% completed
-then [Don't allow "split equally" w/o users] is 0% completed
-then [Don't add purchase when only one user group exists] is 0% completed
-then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
-then [Preserve user, amount and description between different types of purchases] is 0% completed
-then [Implement editing of purchases] is 0% completed and requires 2 days
-then [Use standard Reflex functions to work with lists] is 0% completed
-then [Don't report users that have no transactions] is 0% completed
+2024-08-10 is open
+2024-08-11 is open
+then [Make default credit user != a user from the same group account] is 0% completed
+[Validate payment to self is not possible] is 0% completed and starts on 2024-08-10
+[Prevent deletion of a user referenced in 'actions'] is 0% completed and requires 2 days and starts on 2024-08-10
+[Prevent deletion of a user referenced in 'groups'] is 0% completed and requires 1 day and starts on 2024-08-11
+[Don't allow negative amounts] is 0% completed and starts on 2024-08-11
 then [Move user management to a separate tab] is 0% completed
-then [Reset fields in action addition form] is 0% completed
-then [Add running total in itemized split report] is 0% completed
-then [Use 'mdash' HTML entity] is 0% completed
-
--- Core logic --
-
-[Validate actions] is 0% completed
-[Validate actions] starts at [Use 'mdash' HTML entity]'s end
-
--- Implement Web UI --
-
-[Store expense sheet with users in browser storage] is 0% completed and requires 2 days and starts at [Validate actions]'s end
-then [Implement user groups] is 0% completed
+then [Implement multiple workspaces] is 0% completed and requires 2 days
+then [Store state in browser storage] is 0% completed and requires 2 days
 then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
 then [Deploy money split] is 0% completed
-then [Add user stat] is 0% completed
-then [Use Tailwind material] is 0% completed and requires 3 days
-then [Buffer: UI ready] ends on 2024-09-17 and is 0% completed
-[UI completed] happens on 2024-09-17
+then [Buffer: UI ready] ends on 2024-08-23 and is 0% completed
+[UI completed] happens on 2024-08-23
 then [Advertise among friends] is 0% completed
 then [Update LinkedIn] is 0% completed
 then [Advertise in LinkedIn] is 0% completed
-then [Add context ads] is 0% completed
+
+-- Core logic --
+
+[Validate actions] is 0% completed and starts at [Advertise in LinkedIn]'s end
 
 -- Implement backend --
 
-[Decide if I want to use serverless] starts at [Add context ads]'s end and is 0% completed
+[Decide if I want to use serverless] starts at [Validate actions]'s end and is 0% completed
 [Implement a restful method that just overrides `Actions`] starts at [Decide if I want to use serverless]'s end and is 0% completed
 [Implement OAuth with Google] starts at [Implement a restful method that just overrides `Actions`]'s end and is 0% completed
 [Restrict workspace editing to owner] starts at [Implement OAuth with Google]'s end and is 0% completed
 [Implement addition of users to the workspace] starts at [Restrict workspace editing to owner]'s end and is 0% completed
 [Allow workpsace editing to users in the workspace] starts at [Implement addition of users to the workspace]'s end and is 0% completed
 [Implement `Actions` merge] starts at [Allow workpsace editing to users in the workspace]'s end and is 0% completed
-then [Buffer: Backend ready] is 0% completed and requires 14 days
-[Backend ready] happens on 2024-10-22
+then [Buffer: Backend ready] is 0% completed and ends on 2024-09-26
+[Backend ready] happens on 2024-09-26
+
 @endgantt
