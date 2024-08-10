@@ -10,8 +10,9 @@
 
 import           Control.Monad     (forM, join)
 import           Control.Monad.Fix (MonadFix)
+import           Data.Either       (fromLeft, fromRight, isLeft, isRight)
 import           Data.FileEmbed    (embedFile)
-import           Data.List         (delete, (\\))
+import           Data.List         (delete, find, (\\))
 import qualified Data.Map          as M
 import           Data.Maybe        (isNothing)
 import           Data.Text         (Text)
@@ -90,20 +91,34 @@ manageUsers actions = do
       , addUserEvEv :: Event t (Event t User)
       ) <- fanTuple <$> dyn errorAndAddUserEvDyn
     addUserEv <- switchHold never addUserEvEv
-    error <- holdDyn "" =<< switchHold never (updated <$> errorDynEv)
+    errorEv :: Event t Text <- switchHold never (updated <$> errorDynEv)
+    errorTextDyn <- holdDyn "" (mergeWith max [errorEv, deleteUserErrorEv])
     addUserButtonEv <- button "Add user"
     text " "
-    dynText error
+    dynText errorTextDyn
     users :: Dynamic t [User] <-
       foldDyn ($) []
       ( mergeWith (.)
         [ (:) <$> addUserEv
-        , delete <$> deleteUserEv
+        , delete <$> deleteValidUserEv
         ]
       )
-    deleteUserEv <- switchHold never =<< dyn (ffor actions $ \actions ->
-      ffilter (\user -> not (any (isUserAction user) (actionsArr actions)))
-        <$> (dynList (text . T.pack) users))
+    deleteUserEv <- dynList (text . T.pack) users
+    let deleteUserOrErrorEv :: Event t (Either Text User)
+          = switchDyn . ffor actions $ \actions ->
+              ffor deleteUserEv $ \user ->
+                case find (isUserAction user) (actionsArr actions) of
+                  Just userAction
+                    -> Left . T.pack
+                    $ printf "Can't delete user '%s' due to '%s' action"
+                      user (show userAction)
+                  Nothing -> Right user
+    let deleteValidUserEv :: Event t User
+          = fmap (fromRight (error "Already checked for 'isRight'"))
+          . ffilter isRight $ deleteUserOrErrorEv
+    let deleteUserErrorEv :: Event t Text
+          = fmap (fromLeft (error "Already checked for 'isLeft'"))
+          . ffilter isLeft $ deleteUserOrErrorEv
   return users
 
 manageGroups
