@@ -373,22 +373,65 @@ addItemizedSplitPurchase users = do
         <*> (fmap ItemizedSplit . fromDynamic $ splitItems)
   return $ tagValid purchase addEv
 
+preselectedUsersDropdown users selectedUser =
+  dropdown
+    selectedUser
+    (constDyn . M.fromList $ zip users (map T.pack users))
+    $ def
+
+notSelectedUserDropdown
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => [User] -> User -> Event t User -> m (Dynamic t User)
+notSelectedUserDropdown users init selectedUser = mdo
+  elDyn <- widgetHold
+           (preselectedUsersDropdown users init)
+           (preselectedUsersDropdown users <$> notSelectedUserEv)
+  let val = join $ value <$> elDyn
+  let usersEv = attach (current val) selectedUser
+  let notSelectedUserEv
+        = fmap (\user -> head . filter (/= user) $ users)
+        . fmap fst
+        . ffilter (\(val, selectedUser) -> val == selectedUser) $ usersEv
+  return val
+
+addPaymentTransaction0
+  :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => [User] -> m (Event t Action)
+addPaymentTransaction0 users =
+  if length users < 2
+  then do
+    let msg = "At least two users required, "
+              `T.append` "please add users in \"Manage users\""
+    text msg
+    return never
+  else mdo
+    text "Debit user: "
+    debitUser :: Dynamic t User
+      <- notSelectedUserDropdown
+         users (head users)
+         (updated creditUser)
+    el "br" blank
+    text "Credit user: "
+    creditUser :: Dynamic t User
+      <- notSelectedUserDropdown
+         users (head . tail $ users)
+         (updated debitUser)
+    el "br" blank
+    amount <- amountInput addEv
+    addEv  <- button "Add payment"
+    let action
+          = PaymentAction
+            <$> (fromDynamic debitUser)
+            <*> (fromDynamic creditUser)
+            <*> amount
+    return $ tagValid action addEv
+
 addPaymentTransaction
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [User] -> m (Event t Action)
 addPaymentTransaction users = do
   el "h3" $ text "Add payment"
-  debitUser  <- userInput "Debit User"  users
-  creditUser <- userInput "Credit User" users
-  rec
-    amount <- amountInput addEv
-    addEv  <- button "Add payment"
-    let action
-          =   PaymentAction
-          <$> debitUser
-          <*> creditUser
-          <*> amount
-  return $ tagValid action addEv
+  switchHold never =<< (dyn $ fmap addPaymentTransaction0 users)
 
 actionWidgetPayedFor
     ( PurchaseAction
