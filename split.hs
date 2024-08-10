@@ -11,8 +11,9 @@
 import           Control.Monad     (forM, join)
 import           Control.Monad.Fix (MonadFix)
 import           Data.FileEmbed    (embedFile)
-import           Data.List         (delete)
+import           Data.List         (delete, (\\))
 import qualified Data.Map          as M
+import           Data.Maybe        (isNothing)
 import           Data.Text         (Text)
 import qualified Data.Text         as T
 import           Data.These        (These (These))
@@ -173,8 +174,8 @@ data ActionType
 
 addAction
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Event t Action)
-addAction users = do
+  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
+addAction users groups = do
   text "Choose action type: "
   dropdownEl <- dropdown PurchaseSplitEquallyAllActionType
     ( constDyn
@@ -197,7 +198,7 @@ addAction users = do
       PurchaseItemizedSplitActionType
         -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users
       PaymentTransactionActionType
-        -> addPaymentTransaction users
+        -> addPaymentTransaction users groups
 
 userInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -374,64 +375,90 @@ addItemizedSplitPurchase users = do
   return $ tagValid purchase addEv
 
 preselectedUsersDropdown users selectedUser =
-  dropdown
-    selectedUser
-    (constDyn . M.fromList $ zip users (map T.pack users))
-    $ def
+  case selectedUser of
+    Nothing
+      -> dropdown
+         ""
+         (constDyn . M.fromList $ [])
+         $ def
+    Just selectedUser
+      -> dropdown
+         selectedUser
+         (constDyn . M.fromList $ zip users (map T.pack users))
+         $ def
 
 notSelectedUserDropdown
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => [User] -> User -> Event t User -> m (Dynamic t User)
-notSelectedUserDropdown users init selectedUser = mdo
+  => [User] -> Maybe User -> Event t [User] -> m (Dynamic t User)
+notSelectedUserDropdown users init selectedUsers = mdo
   elDyn <- widgetHold
            (preselectedUsersDropdown users init)
            (preselectedUsersDropdown users <$> notSelectedUserEv)
   let val = join $ value <$> elDyn
-  let usersEv = attach (current val) selectedUser
+  let usersEv = attach (current val) selectedUsers
   let notSelectedUserEv
-        = fmap (\user -> head . filter (/= user) $ users)
-        . fmap fst
-        . ffilter (\(val, selectedUser) -> val == selectedUser) $ usersEv
+        = fmap (
+            \(_, selectedUsers) -> case users \\ selectedUsers of
+                       [] -> Nothing
+                       x:_ -> Just x
+            )
+        . ffilter (\(val, selectedUsers) -> val `elem` selectedUsers)
+        $ usersEv
   return val
 
 addPaymentTransaction0
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => [User] -> m (Event t Action)
-addPaymentTransaction0 users =
+  => [User] -> [Group] -> m (Event t Action)
+addPaymentTransaction0 users groups =
   if length users < 2
   then do
     let msg = "At least two users required, "
               `T.append` "please add users in \"Manage users\""
     text msg
     return never
-  else mdo
-    text "Debit user: "
-    debitUser :: Dynamic t User
-      <- notSelectedUserDropdown
-         users (head users)
-         (updated creditUser)
-    el "br" blank
-    text "Credit user: "
-    creditUser :: Dynamic t User
-      <- notSelectedUserDropdown
-         users (head . tail $ users)
-         (updated debitUser)
-    el "br" blank
-    amount <- amountInput addEv
-    addEv  <- button "Add payment"
-    let action
-          = PaymentAction
-            <$> (fromDynamic debitUser)
-            <*> (fromDynamic creditUser)
-            <*> amount
-    return $ tagValid action addEv
+  else
+    let maybeSecondUser = findUserNotInTheSameGroup users groups (head users)
+    in if isNothing maybeSecondUser
+       then do
+         let msg = "All users should not belong to the same group, "
+                   `T.append` "please add users in \"Manage users\" or "
+                   `T.append` "remove groups in \"Manage groups\""
+         text msg
+         return never
+       else mdo
+         text "Debit user: "
+         let firstUser = head users
+         debitUser :: Dynamic t User
+           <- notSelectedUserDropdown
+              users (Just firstUser)
+              (currentGroupOrUser groups <$> updated creditUser)
+         el "br" blank
+         text "Credit user: "
+
+         creditUser :: Dynamic t User
+           <- notSelectedUserDropdown
+              users maybeSecondUser
+              (currentGroupOrUser groups <$> updated debitUser)
+         el "br" blank
+         amount <- amountInput addEv
+         addEv  <- button "Add payment"
+         let action
+               = PaymentAction
+                 <$> (fromDynamic debitUser)
+                 <*> (fromDynamic creditUser)
+                 <*> amount
+         return $ tagValid action addEv
 
 addPaymentTransaction
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Event t Action)
-addPaymentTransaction users = do
+  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
+addPaymentTransaction users groups = do
   el "h3" $ text "Add payment"
-  switchHold never =<< (dyn $ fmap addPaymentTransaction0 users)
+  switchHold never =<< (dyn $ do
+    users <- users
+    groups <- groups
+    return $ addPaymentTransaction0 users groups
+    )
 
 actionWidgetPayedFor
     ( PurchaseAction
@@ -488,11 +515,11 @@ actionWidget ( PaymentAction debitUser creditUser amount ) = do
 
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [[User]] -> m (Dynamic t Actions)
+  => Dynamic t [User] -> Dynamic t [Group] -> m (Dynamic t Actions)
 manageActions users groups = do
   el "h2" $ text "Manage actions"
   rec
-    addActionEv <- addAction users
+    addActionEv <- addAction users groups
     actionsList <-
       foldDyn ($) []
       ( mergeWith (.)

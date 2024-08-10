@@ -22,6 +22,23 @@ data Account = UserAccount User | GroupAccount Group deriving (Show, Eq, Ord)
 type DebitAccount = Account
 type CreditAccount = Account
 
+findUserNotInTheSameGroup :: [User] -> [Group] -> User -> Maybe User
+findUserNotInTheSameGroup users groups currentUser
+  = case group of
+      Nothing -> find (/= currentUser) users
+      Just group
+        -> find (\user -> (lookup user groupsByUsersVal) /= (Just group)) users
+  where
+    groupsByUsersVal = groupsByUsers groups
+    group = lookup currentUser groupsByUsersVal
+
+currentGroup groups user
+  = lookup user groupsByUsersVal
+  where
+    groupsByUsersVal = groupsByUsers groups
+
+currentGroupOrUser groups user = maybe [user] id $ currentGroup groups user
+
 accountUsers (UserAccount user  ) = [user]
 accountUsers (GroupAccount group) = group
 
