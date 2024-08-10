@@ -72,8 +72,8 @@ fanTuple = fanThese . fmap tupleToThese
 
 manageUsers
   :: forall t m . (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => m (Dynamic t [User])
-manageUsers = do
+  => Dynamic t Actions -> m (Dynamic t [User])
+manageUsers actions = do
   el "h2" $ text "Manage users"
   rec
     let errorAndAddUserEvDyn :: Dynamic t (m (ErrorDynamic t, Event t User))
@@ -101,7 +101,9 @@ manageUsers = do
         , delete <$> deleteUserEv
         ]
       )
-    deleteUserEv <- dynList (text . T.pack) users
+    deleteUserEv <- switchHold never =<< dyn (ffor actions $ \actions ->
+      ffilter (\user -> not (any (isUserAction user) (actionsArr actions)))
+        <$> (dynList (text . T.pack) users))
   return users
 
 manageGroups
@@ -537,9 +539,10 @@ manageActions users groups = do
 
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do
-  users <- manageUsers
-  groups <- manageGroups users
-  actions <- manageActions users groups
+  rec 
+    users <- manageUsers actions
+    groups <- manageGroups users
+    actions <- manageActions users groups
   let nullified = (nullifyBalances . actionsToTransactions) <$> actions
   el "h2" $ text "Report"
   dyn (report <$> actions <*> nullified)

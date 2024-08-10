@@ -136,6 +136,8 @@ data Split
   | ItemizedSplit [SplitItem]
   deriving (Show, Eq, Ord)
 
+isUserPurchase user = (== user) . purchaseUser
+
 maybeSplitItems (ItemizedSplit items) = Just items
 maybeSplitItems  _                    = Nothing
 
@@ -155,6 +157,10 @@ purchaseSplitUsers actions (Purchase { purchaseSplit = split })
 data Action
   = PurchaseAction Purchase | PaymentAction User User Amount
   deriving (Eq, Show)
+
+isUserAction user (PaymentAction u1 u2 _) = user == u1 || user == u2
+isUserAction user (PurchaseAction p) = isUserPurchase user p
+
 data Actions
   = Actions
   { actionsUsers :: [User]
