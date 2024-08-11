@@ -92,7 +92,7 @@ manageUsers actions = do
       ) <- fanTuple <$> dyn errorAndAddUserEvDyn
     addUserEv <- switchHold never addUserEvEv
     errorEv :: Event t Text <- switchHold never (updated <$> errorDynEv)
-    errorTextDyn <- holdDyn "" (mergeWith max [errorEv, deleteUserErrorEv])
+    errorTextDyn <- holdDyn "" errorEv
     addUserButtonEv <- button "Add user"
     text " "
     dynText errorTextDyn
@@ -100,26 +100,43 @@ manageUsers actions = do
       foldDyn ($) []
       ( mergeWith (.)
         [ (:) <$> addUserEv
-        , delete <$> deleteValidUserEv
+        , delete <$> deleteUserEv
         ]
       )
-    deleteUserEv <- dynList (text . T.pack) users
-    let deleteUserOrErrorEv :: Event t (Either Text User)
-          = switchDyn . ffor actions $ \actions ->
-              ffor deleteUserEv $ \user ->
-                case find (isUserAction user) (actionsArr actions) of
-                  Just userAction
-                    -> Left . T.pack
-                    $ printf "Can't delete user '%s' due to '%s' action"
-                      user (show userAction)
-                  Nothing -> Right user
-    let deleteValidUserEv :: Event t User
-          = fmap (fromRight (error "Already checked for 'isRight'"))
-          . ffilter isRight $ deleteUserOrErrorEv
-    let deleteUserErrorEv :: Event t Text
-          = fmap (fromLeft (error "Already checked for 'isLeft'"))
-          . ffilter isLeft $ deleteUserOrErrorEv
+    deleteUserEv <- el "ul" $ simpleListOneEvent users (userListItem actions)
   return users
+
+simpleListOneEvent
+  :: (Eq item, Adjustable t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [item] -> (Dynamic t item -> m (Event t item))
+  -> m (Event t item)
+simpleListOneEvent items itemWidget
+  = switchDyn <$> (simpleList items itemWidget >>=
+                    \evs -> return $ (leftmost <$> evs))
+
+userListItem :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m)
+  => Dynamic t Actions -> Dynamic t User -> m (Event t User)
+userListItem actions user = el "li" $ do
+  dynText (T.pack <$> user)
+  deleteUserEv <- switchHold never =<< (dyn $ deleteX <$> user)
+  let deleteUserOrErrorEv :: Event t (Either Text User)
+        = switchDyn . ffor actions $ \actions ->
+            ffor deleteUserEv $ \user ->
+              case find (isUserAction user) (actionsArr actions) of
+                Just userAction
+                  -> Left . T.pack
+                  $ printf "Can't delete user '%s' because '%s' action exists"
+                    user (show userAction)
+                Nothing -> Right user
+  let deleteValidUserEv :: Event t User
+        = fmap (fromRight (error "Already checked for 'isRight'"))
+        . ffilter isRight $ deleteUserOrErrorEv
+  let deleteUserErrorEv :: Event t Text
+        = fmap (fromLeft (error "Already checked for 'isLeft'"))
+        . ffilter isLeft $ deleteUserOrErrorEv
+  text " "
+  dynText =<< holdDyn "" deleteUserErrorEv
+  return deleteValidUserEv
 
 manageGroups
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
