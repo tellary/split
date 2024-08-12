@@ -135,7 +135,7 @@ userListItem actions user = el "li" $ do
         = fmap (fromLeft (error "Already checked for 'isLeft'"))
         . ffilter isLeft $ deleteUserOrErrorEv
   text " "
-  dynText =<< holdDyn "" deleteUserErrorEv
+  dynText =<< (holdDyn "" $ leftmost [deleteUserErrorEv, "" <$ updated actions])
   return deleteValidUserEv
 
 manageGroups
