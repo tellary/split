@@ -8,26 +8,24 @@
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
-import           Control.Monad     (forM, join)
-import           Control.Monad.Fix (MonadFix)
-import           Data.Either       (fromLeft, fromRight, isLeft, isRight)
-import           Data.FileEmbed    (embedFile)
-import           Data.List         (delete, find, (\\))
-import qualified Data.Map          as M
-import           Data.Maybe        (isNothing)
-import           Data.Text         (Text)
-import qualified Data.Text         as T
-import           Data.These        (These (These))
+import           Control.Monad         (forM, join)
+import           Control.Monad.Fix     (MonadFix)
+import           Data.Either           (fromLeft, fromRight, isLeft, isRight)
+import           Data.FileEmbed        (embedFile)
+import           Data.List             (delete, find, (\\))
+import qualified Data.Map              as M
+import           Data.Maybe            (isNothing)
+import           Data.Text             (Text)
+import qualified Data.Text             as T
+import           Data.These            (These (These))
 import           MoneySplit
-import           Reflex.Dom        hiding (Group)
+import           Reflex.Dom            hiding (Group)
 import           SplitReport
-import           Text.Printf       (printf)
-import           Text.Read         (readMaybe)
-import           ValidDynamic      (ErrorDynamic, ValidDynamic, errorDyn,
-                                    fromDynamic, fromDynamicEither, tagValid,
-                                    validDyn)
-
 import qualified StatelessValidDynamic as S
+import           Text.Printf           (printf)
+import           Text.Read             (readMaybe)
+import           ValidDynamic          (ValidDynamic, errorDyn, fromDynamic,
+                                        fromDynamicEither, tagValid, validDyn)
 
 resettableInput
   :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
@@ -39,7 +37,7 @@ resettableInput submitEvent validation = do
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
     let validInput :: S.ValidDynamic t Text b
-          = S.fromDynamic validation (value $ input)
+          = S.fromDynamic (value $ input) validation 
     let ev :: Event t b
           = S.tagValid validInput submitOrEnterEv
   return (ev, validInput)
@@ -134,6 +132,31 @@ userListItem actions user = el "li" $ do
   dynText =<< (holdDyn "" $ leftmost [deleteUserErrorEv, "" <$ updated actions])
   return deleteValidUserEv
 
+addGroup :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => [User] -> [Group] -> m (Event t Group)
+addGroup users groups = mdo
+  let usersNotInGroups
+        = filter (not . \user -> any (\group -> user `elem` group) groups)
+          $ users
+  newGroupUsers <- selectUsers "group" $ constDyn usersNotInGroups
+  let newGroupUsersValid :: S.ValidDynamic t Text [User]
+        = S.fromDynamic newGroupUsers
+          $ \case
+              [ ] -> Left $ "No users selected. "
+                     `T.append` "At least 2 users necessary for a group"
+              [_] -> Left $ "Only one user is selected. "
+                     `T.append` "At least 2 users necessary for a group"
+              gs  -> Right $ gs
+  addGroupButtonEv <- button "Add group"
+  let addGroupEv = S.tagValid newGroupUsersValid addGroupButtonEv
+  dynText
+    =<< S.errorDyn "" addGroupButtonEv
+    -- 'selectUsers' generates 2 unnecessary updates
+    -- we drop them to prevent "" error text being replaced
+    -- with an actual error before any actual update is done
+    =<< S.dropValidDynamic (Left "") 2 newGroupUsersValid
+  return addGroupEv
+
 manageGroups
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [User] -> m (Dynamic t [[User]])
@@ -141,27 +164,11 @@ manageGroups users = do
   el "h2" $ text "Manage user groups"
   el "h3" $ text "Select users for the group"
   rec
-    let usersNotInGroups = users >>= \users ->
-          userGroups >>= \groups ->
-            return
-            . filter (not . \user -> any (\group -> user `elem` group) groups)
-            $ users
-    newGroupUsers <- selectUsers "groups" usersNotInGroups
-    newGroupUsersValid :: ValidDynamic t [User]
-      <- validDyn
-         [] 1
-         (1 <$ addGroupButtonEv)
-         (1 <$ leftmost [deleteGroupEv, updated users] )
-         (updated $ newGroupUsers)
-         $ \case
-             [ ] -> Left $ "No users selected. "
-                    `T.append` "At least 2 users necessary for a group"
-             [_] -> Left $ "Only one user is selected. "
-                    `T.append` "At least 2 users necessary for a group"
-             gs  -> Right $ gs
-    addGroupButtonEv <- button "Add group"
-    let addGroupEv = tagValid newGroupUsersValid addGroupButtonEv
-    dynText =<< errorDyn addGroupButtonEv newGroupUsersValid
+    let addGroupEvDyn :: Dynamic t (m (Event t Group)) = do
+          users  <- users
+          groups <- userGroups
+          return $ addGroup users groups
+    addGroupEv <- switchHold never =<< dyn addGroupEvDyn
     userGroups :: Dynamic t [Group] <-
       foldDyn ($) []
       ( mergeWith (.)
@@ -186,7 +193,7 @@ validInput submitEvent validation = do
   dynText =<< errorDyn submitEvent inputValueValid
   return inputValueValid
 
-dynToDyn :: (DomBuilder t m, MonadHold t m, PostBuild t m)
+dynToDyn :: (Adjustable t m, NotReady t m, MonadHold t m, PostBuild t m)
   => a -> Dynamic t (m (Dynamic t a)) -> m (Dynamic t a)
 dynToDyn initVal dynWidget =
   join <$> (holdDyn (constDyn initVal) =<< dyn dynWidget)
@@ -295,26 +302,35 @@ addSplitAllPurchase users = do
         <*> pure SplitEquallyAll
   return $ tagValid purchase addEv
 
-selectUsers  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => String -> Dynamic t [User] -> m (Dynamic t [User])
-selectUsers idPrefix users
-  = dynToDyn [] . ffor users $ \users -> do
-      selectedCbs :: Dynamic t [Bool] <-
-        fmap distributeListOverDyn . forM users $ \user -> do
-          cb <- inputElement
-            $ def
-            & inputElementConfig_elementConfig
-            . elementConfig_initialAttributes
-            .~ (  "type" =: "checkbox"
-               <> "id" =: T.pack (idPrefix ++ "_" ++ user))
-          elAttr "label"
-              ("for" =: T.pack (idPrefix ++ "_" ++ user)) $ do
+selectUserItem
+  :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
+  => String -> Dynamic t User -> m (Dynamic t Bool)
+selectUserItem idPrefix user = dynToDyn False $ do
+  user <- user
+  let widget :: m (Dynamic t Bool) = do
+        cb <- inputElement
+              $ def
+              & inputElementConfig_elementConfig
+              . elementConfig_initialAttributes
+              .~ (  "type" =: "checkbox"
+                 <> "id" =: T.pack (idPrefix ++ "_" ++ user))
+        elAttr "label"
+          ("for" =: T.pack (idPrefix ++ "_" ++ user)) $ do
             text " "
             text . T.pack $ user
-          el "br" blank
-          return . _inputElement_checked $ cb
-      return . fmap (map snd . filter fst)
-        $ (zip <$> selectedCbs <*> pure users)
+            el "br" blank
+            return . _inputElement_checked $ cb
+  return widget
+
+selectUsers
+  :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => String -> Dynamic t [User] -> m (Dynamic t [User])
+selectUsers idPrefix users = do
+  selectedCbs :: Dynamic t [Bool]
+    <- fmap (join . fmap distributeListOverDyn)
+       $ simpleList users (selectUserItem idPrefix)
+  return . fmap (map snd . filter fst)
+    $ (zip <$> selectedCbs <*> users)
 
 addSplitEquallyPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)

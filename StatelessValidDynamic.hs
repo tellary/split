@@ -13,11 +13,18 @@ import Reflex.Dom
 
 type ValidDynamic t err a = ExceptT err (Dynamic t) a
 
-fromDynamic :: Reflex t => (a -> Either err b) -> Dynamic t a -> ValidDynamic t err b
-fromDynamic validation = ExceptT . fmap validation 
+fromDynamic :: Reflex t => Dynamic t a -> (a -> Either err b) -> ValidDynamic t err b
+fromDynamic d validation = ExceptT . fmap validation $ d
 
-fromValue :: Reflex t => (a -> Either err b) -> a -> ValidDynamic t err b
-fromValue validation = ExceptT . fmap validation . pure
+fromEvent
+  :: (Reflex t, MonadHold t m)
+  => a -> Event t a -> (a -> Either err b) -> m (ValidDynamic t err b)
+fromEvent initVal ev validation = do
+  d <- holdDyn initVal ev
+  return $ fromDynamic d validation
+
+fromValue :: Reflex t => a -> (a -> Either err b) -> ValidDynamic t err b
+fromValue a validation = ExceptT . fmap validation . pure $ a
 
 assumeValidValue :: Reflex t => a -> ValidDynamic t err a
 assumeValidValue = ExceptT . fmap Right . pure
@@ -27,11 +34,11 @@ maybeValidValue = either (const Nothing) Just
 tagValid :: Reflex t => ValidDynamic t err a -> Event t b -> Event t a
 tagValid (ExceptT validInput) submitEvent
   = mapMaybe maybeValidValue
-  . tagPromptlyDyn validInput
+  . (tag . current) validInput
   $ submitEvent
 
 errorDyn
-  :: (Reflex t, MonadHold t m)
+  :: (Show a, Show err, Show b, Reflex t, MonadHold t m)
   => err -> Event t a -> ValidDynamic t err b -> m (Dynamic t err)
 errorDyn noErrorVal submitEvent (ExceptT validDynamic) = do
   let error = fmap (either id (const noErrorVal)) validDynamic
@@ -46,3 +53,14 @@ unwrapValidDynamicWidget initVal dynWidget
   = fmap (ExceptT . join . fmap runExceptT)
     (holdDyn (assumeValidValue initVal) =<< dyn dynWidget)
 
+dropE :: (Reflex t, MonadHold t m) => Int -> Event t a -> m (Event t a)
+dropE 0     e = return e
+dropE count e = do
+  skipped <- tailE e
+  dropE (count - 1) skipped
+
+dropValidDynamic
+  :: (Reflex t, MonadHold t m)
+  => Either err a -> Int -> ValidDynamic t err a -> m (ValidDynamic t err a)
+dropValidDynamic initVal count d
+  = fmap ExceptT (holdDyn initVal =<< (dropE count . updated . runExceptT $ d))
