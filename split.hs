@@ -27,26 +27,22 @@ import           ValidDynamic      (ErrorDynamic, ValidDynamic, errorDyn,
                                     fromDynamic, fromDynamicEither, tagValid,
                                     validDyn)
 
+import qualified StatelessValidDynamic as S
+
 resettableInput
-  :: forall t m a b c . (Show c, DomBuilder t m, MonadHold t m, MonadFix m)
-  => Event t a -> Event t b -> (Text -> Either Text c)
-  -> m (ErrorDynamic t, Event t c)
-resettableInput submitEvent resetEvent validation = do
+  :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
+  => Event t a -> (Text -> Either Text b)
+  -> m (Event t b, S.ValidDynamic t Text b)
+resettableInput submitEvent validation = do
   rec
-    input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ evText)
+    input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ ev)
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
-    validInput :: ValidDynamic t c <-
-      validDyn
-        "" 0
-        (1 <$ submitOrEnterEv)
-        (0 <$ resetEvent)
-        (updated . value $ input)
-        validation
-    let evText :: Event t c
-          = tagValid validInput submitOrEnterEv
-  error <- errorDyn submitEvent validInput
-  return (error, evText)
+    let validInput :: S.ValidDynamic t Text b
+          = S.fromDynamic validation (value $ input)
+    let ev :: Event t b
+          = S.tagValid validInput submitOrEnterEv
+  return (ev, validInput)
 
 dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
   => (a -> m ()) -> Dynamic t [a] -> m (Event t a)
@@ -77,25 +73,25 @@ manageUsers
 manageUsers actions = do
   el "h2" $ text "Manage users"
   rec
-    let errorAndAddUserEvDyn :: Dynamic t (m (ErrorDynamic t, Event t User))
-          = (users >>= \users ->
-                return . resettableInput addUserButtonEv deleteUserEv
-                $ \user ->
-                    let userStr = T.unpack . T.strip $ user
-                    in if null $ userStr
-                       then Left $ "Empty users names are not allowed"
-                       else if userStr `elem` users
-                            then Left (T.pack $ printf "User '%s' already exists" userStr)
-                            else Right userStr )
-    (   errorDynEv  :: Event t (ErrorDynamic t)
-      , addUserEvEv :: Event t (Event t User)
-      ) <- fanTuple <$> dyn errorAndAddUserEvDyn
-    addUserEv <- switchHold never addUserEvEv
-    errorEv :: Event t Text <- switchHold never (updated <$> errorDynEv)
-    errorTextDyn <- holdDyn "" errorEv
-    addUserButtonEv <- button "Add user"
-    text " "
-    dynText errorTextDyn
+    let addUserEvDyn :: Dynamic t (m (Event t User)) = do
+        users <- users
+        let widget :: m (Event t User) = mdo
+              (ev, userInput) <- resettableInput addUserButtonEv $
+                \user ->
+                  let userStr = T.unpack . T.strip $ user
+                  in if null $ userStr
+                  then Left $ "Empty users names are not allowed"
+                  else if userStr `elem` users
+                       then Left
+                            . T.pack
+                            $ printf "User '%s' already exists" userStr
+                       else Right userStr
+              addUserButtonEv <- button "Add user"
+              text " "
+              dynText =<< (S.errorDyn "" addUserButtonEv $ userInput)
+              return $ S.tagValid userInput ev
+        return widget
+    addUserEv <- switchHold never =<< dyn addUserEvDyn
     users :: Dynamic t [User] <-
       foldDyn ($) []
       ( mergeWith (.)
