@@ -13,8 +13,15 @@ import Reflex.Dom
 
 type ValidDynamic t err a = ExceptT err (Dynamic t) a
 
-fromDynamic :: Reflex t => Dynamic t a -> (a -> Either err b) -> ValidDynamic t err b
+fromDynamic
+  :: Reflex t
+  => Dynamic t a -> (a -> Either err b) -> ValidDynamic t err b
 fromDynamic d validation = ExceptT . fmap validation $ d
+
+fromDynamicEither
+  :: Reflex t
+  => Dynamic t (Either err a) -> ValidDynamic t err a
+fromDynamicEither d = ExceptT d
 
 fromEvent
   :: (Reflex t, MonadHold t m)
@@ -25,6 +32,9 @@ fromEvent initVal ev validation = do
 
 fromValue :: Reflex t => a -> (a -> Either err b) -> ValidDynamic t err b
 fromValue a validation = ExceptT . fmap validation . pure $ a
+
+assumeValidDynamic :: Reflex t => Dynamic t a -> ValidDynamic t err a
+assumeValidDynamic = ExceptT . fmap Right
 
 assumeValidValue :: Reflex t => a -> ValidDynamic t err a
 assumeValidValue = ExceptT . fmap Right . pure
@@ -38,7 +48,7 @@ tagValid (ExceptT validInput) submitEvent
   $ submitEvent
 
 errorDyn
-  :: (Show a, Show err, Show b, Reflex t, MonadHold t m)
+  :: (Reflex t, MonadHold t m)
   => err -> Event t a -> ValidDynamic t err b -> m (Dynamic t err)
 errorDyn noErrorVal submitEvent (ExceptT validDynamic) = do
   let error = fmap (either id (const noErrorVal)) validDynamic

@@ -24,8 +24,6 @@ import           SplitReport
 import qualified StatelessValidDynamic as S
 import           Text.Printf           (printf)
 import           Text.Read             (readMaybe)
-import           ValidDynamic          (ValidDynamic, errorDyn, fromDynamic,
-                                        fromDynamicEither, tagValid, validDyn)
 
 resettableInput
   :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
@@ -182,15 +180,14 @@ manageGroups users = do
   return userGroups
 
 validInput
-  :: (Show a, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Event t b -> (Text -> Either Text a)
-  -> m (ValidDynamic t a)
+  -> m (S.ValidDynamic t Text a)
 validInput submitEvent validation = do
   inputValue <- value <$> inputElement def
-  inputValueValid
-    <- validDyn "" 0 (0 <$ submitEvent) never (updated inputValue) validation
+  let inputValueValid = S.fromDynamic inputValue validation
   text " "
-  dynText =<< errorDyn submitEvent inputValueValid
+  dynText =<< S.errorDyn "" submitEvent inputValueValid
   return inputValueValid
 
 dynToDyn :: (Adjustable t m, NotReady t m, MonadHold t m, PostBuild t m)
@@ -239,10 +236,10 @@ addAction users groups = do
 
 userInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> m (ValidDynamic t User)
+  => Text -> Dynamic t [User] -> m (S.ValidDynamic t Text User)
 userInput label users = do
   text $ label `T.append` ": "
-  user <- fromDynamicEither <$> dynToDyn
+  user :: S.ValidDynamic t Text User <- S.fromDynamicEither <$> dynToDyn
     ( Left "" )
     ( ffor users $ \users -> do
         if length users < 2
@@ -262,7 +259,7 @@ userInput label users = do
   return user
 
 descriptionInput :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Event t a -> m (ValidDynamic t Text)
+  => Event t a -> m (S.ValidDynamic t Text Text)
 descriptionInput addEv = do
   text "Description: "
   desc <- validInput addEv $ \txt ->
@@ -274,7 +271,7 @@ descriptionInput addEv = do
   return desc
 
 amountInput :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Event t a -> m (ValidDynamic t Amount)
+  => Event t a -> m (S.ValidDynamic t Text Amount)
 amountInput addEv = do
   text "Amount: "
   amount <- validInput addEv $ \txt ->
@@ -300,7 +297,7 @@ addSplitAllPurchase users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> pure SplitEquallyAll
-  return $ tagValid purchase addEv
+  return $ S.tagValid purchase addEv
 
 selectUserItem
   :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
@@ -341,7 +338,7 @@ addSplitEquallyPurchase users = do
   rec
     desc          <- descriptionInput addEv
     amount        <- amountInput addEv
-    selectedUsers <- fromDynamic <$> selectUsers "split" users
+    selectedUsers <- S.assumeValidDynamic <$> selectUsers "split" users
     addEv         <- button "Add purchase"
   let purchase
         = Purchase
@@ -349,7 +346,7 @@ addSplitEquallyPurchase users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> (SplitEqually <$> selectedUsers)
-  return $ tagValid purchase addEv
+  return $ S.tagValid purchase addEv
 
 addSplitItem
   ::(DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -365,7 +362,7 @@ addSplitItem users = do
         <$> user
         <*> fmap (T.unpack) desc
         <*> amount
-  return $ tagValid splitItem addEv
+  return $ S.tagValid splitItem addEv
 
 splitWidget item = do
   text . T.pack . splitItemUser $ item
@@ -416,9 +413,9 @@ addItemizedSplitPurchase users = do
         = Purchase
         <$> user
         <*> fmap (T.unpack) desc
-        <*> (fmap (sum . map splitItemAmount) . fromDynamic $ splitItems)
-        <*> (fmap ItemizedSplit . fromDynamic $ splitItems)
-  return $ tagValid purchase addEv
+        <*> (fmap (sum . map splitItemAmount) . S.assumeValidDynamic $ splitItems)
+        <*> (fmap ItemizedSplit . S.assumeValidDynamic $ splitItems)
+  return $ S.tagValid purchase addEv
 
 preselectedUsersDropdown users selectedUser =
   case selectedUser of
@@ -490,10 +487,10 @@ addPaymentTransaction0 users groups =
          addEv  <- button "Add payment"
          let action
                = PaymentAction
-                 <$> (fromDynamic debitUser)
-                 <*> (fromDynamic creditUser)
+                 <$> (S.assumeValidDynamic debitUser)
+                 <*> (S.assumeValidDynamic creditUser)
                  <*> amount
-         return $ tagValid action addEv
+         return $ S.tagValid action addEv
 
 addPaymentTransaction
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
