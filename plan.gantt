@@ -69,7 +69,7 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Prevent deletion of a user referenced in 'actions'] is 100% completed and starts on 2024-08-10 and ends on 2024-08-13
 [Prevent deletion of a user referenced in 'actions'] pauses on 2024-08-12
 [Prevent deletion of a user referenced in 'groups'] is 100% completed and starts on 2024-08-13
-[Don't allow negative amounts] is 0% completed and starts on 2024-08-13
+[Don't allow negative amounts] is 100% completed and starts on 2024-08-13
 
 -- Core logic --
 

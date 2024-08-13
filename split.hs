@@ -292,8 +292,14 @@ amountInput addEv = do
   text "Amount: "
   amount <- validInput addEv $ \txt ->
     maybe
-    (Left $ "Failed to read amount: " `T.append` txt) Right
-    (readMaybe . T.unpack $ txt :: Maybe Amount)
+    (Left $ "Failed to read amount: " `T.append` txt) id
+    $ do
+      amt <- readMaybe . T.unpack $ txt :: Maybe Amount
+      if amt < 0
+        then return . Left $ "Negative amount not allowed"
+        else if amt == 0
+             then return . Left $ "Zero amount not allowed"
+             else return . Right $ amt
   el "br" blank
   return amount
 
