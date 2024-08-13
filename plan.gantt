@@ -68,16 +68,18 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Make payment to a user from the same group not possible] is 100% completed and starts on 2024-08-10
 [Prevent deletion of a user referenced in 'actions'] is 100% completed and starts on 2024-08-10 and ends on 2024-08-13
 [Prevent deletion of a user referenced in 'actions'] pauses on 2024-08-12
-[Prevent deletion of a user referenced in 'groups'] is 0% completed and requires 1 day and starts on 2024-08-13
+[Prevent deletion of a user referenced in 'groups'] is 100% completed and starts on 2024-08-13
 [Don't allow negative amounts] is 0% completed and starts on 2024-08-13
 
 -- Core logic --
 
 [Implement split by a user or by a group logic] is 0% completed and starts at [Don't allow negative amounts]'s end
+then [Logic: Support tips in "itemized split"] is 0% completed
 
 -- Implement Web UI --
 
 [Implement split by a user or by a group in UI] is 0% completed and starts at [Implement split by a user or by a group logic]'s end
+then [UI: Support tips in "itemized split"] is 0% completed
 then [Move user management to a separate tab] is 0% completed
 then [Implement multiple workspaces] is 0% completed and requires 2 days
 then [Store state in browser storage] is 0% completed and requires 2 days

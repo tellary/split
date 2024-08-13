@@ -108,13 +108,19 @@ simpleListOneEvent items itemWidget
   = switchDyn <$> (simpleList items itemWidget >>=
                     \evs -> return $ (leftmost <$> evs))
 
+data UserDeletionErr
+  = UserInActionErr User Action
+  | UserInGroupErr User Group
+  deriving Show
+
 userListItem :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m)
   => Dynamic t Actions -> Dynamic t User -> m (Event t User)
 userListItem actions user = el "li" $ do
   dynText (T.pack <$> user)
   deleteUserEv <- switchHold never =<< (dyn $ deleteX <$> user)
   deleteUserValid <- unwrapValidDynamicWidget "" $ do
-    actionsArrVal <- actionsArr <$> actions
+    actionsArrVal <- actionsArr    <$> actions
+    groupsVal     <- actionsGroups <$> actions
     userVal       <- user
     return . fromEvent Nothing (Just <$> deleteUserEv)
       $ \case
@@ -122,13 +128,21 @@ userListItem actions user = el "li" $ do
          Just user
            -> case find (isUserAction user) actionsArrVal of
                 Just userAction
-                  -> Left (user, userAction)
-                Nothing -> Right user
+                  -> Left $ UserInActionErr user userAction
+                Nothing -> case find (user `elem`) groupsVal of
+                  Just group -> Left $ UserInGroupErr user group
+                  Nothing    -> Right user
   text " "
-  errorWidget never deleteUserValid (return ()) $ \(user, action) -> do
-      text . T.pack $ printf "Can't delete user '%s' because action exists: " user
+  errorWidget never deleteUserValid (return ()) $ \case
+    UserInActionErr user action -> do
+      text . T.pack
+        $ printf "Can't delete user '%s' referenced in action: " user
       actionWidget action
       return ()
+    UserInGroupErr user group -> do
+      text . T.pack
+        $ printf "Can't delete user '%s' referenced in group: %s"
+            user (printUsersList group)
   return $ tagValid deleteUserValid deleteUserEv
 
 addGroup
