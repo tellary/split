@@ -21,11 +21,10 @@ import           MoneySplit          (Account, Actions (Actions), Amount,
                                                 purchaseUser),
                                       Split (ItemizedSplit, SplitEqually),
                                       SplitItem (splitItemAmount,
-                                                 splitItemDesc, splitItemUser),
+                                                 splitItemDesc),
                                       Transaction (txAmount, txCreditAccount,
                                                    txDebitAccount),
-                                      TxReason (TxReasonPayment,
-                                                TxReasonPurchase),
+                                      TxReason (TxReasonPayment, TxReasonPurchase),
                                       Voice (Active, Passive), accountUsers,
                                       actionsAccounts, balance,
                                       creditAccountTransactions,
@@ -35,8 +34,10 @@ import           MoneySplit          (Account, Actions (Actions), Amount,
                                       printAccountStatusOwedBy,
                                       printAccountStatusOwesTo,
                                       printSummaryBySingleReason,
+                                      printUsersList, splitItemUsers,
                                       splitItemsForAccount, splitItemsUsers,
-                                      userToAccount, usersToAccounts, verbForm)
+                                      splitTosToAccounts, userToAccount,
+                                      usersToAccounts, verbForm)
 import           Reflex.Dom          (DomBuilder, MonadHold, PostBuild, blank,
                                       el, text)
 import           Text.Printf         (printf)
@@ -85,7 +86,7 @@ reportAccountStatus acc txs
 reportAccountSplitItems splitItems acc = do
   el "ul" . forM_ (splitItemsForAccount splitItems acc) $ \item -> do
     el "li" $ do
-      text . T.pack . splitItemUser $ item
+      text . T.pack . printUsersList . splitItemUsers $ item
       text ", "
       text . T.pack . splitItemDesc $ item
       text " -- "
@@ -113,7 +114,7 @@ reportAccountSingleReasonDetails
           { purchaseUser = purchaseUser
           , purchaseDesc = purchaseDesc
           , purchaseAmount = purchaseAmount
-          , purchaseSplit = SplitEqually users
+          , purchaseSplit = SplitEqually splitTos
           }
         )
       , txs) = do
@@ -128,7 +129,7 @@ reportAccountSingleReasonDetails
     text " for \""
     text . T.pack $ purchaseDesc
     text "\" split equally:"
-    el "ul" . forM_ (usersToAccounts actions users) $ \acc -> do
+    el "ul" . forM_ (splitTosToAccounts actions splitTos) $ \acc -> do
       el "li" $ do
         let amount = if purchaseUser `elem` accountUsers acc
                      then purchaseAmount + (balance acc $ txs)

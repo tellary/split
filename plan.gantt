@@ -73,7 +73,7 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 
 -- Core logic --
 
-[Implement split by a user or by a group logic] is 0% completed and starts at [Don't allow negative amounts]'s end
+[Implement split by a user or by a group logic] is 100% completed and starts on 2024-08-13
 then [Logic: Support tips in "itemized split"] is 0% completed
 
 -- Implement Web UI --

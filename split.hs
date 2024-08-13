@@ -367,7 +367,7 @@ addSplitEquallyPurchase users = do
         <$> user
         <*> fmap (T.unpack) desc
         <*> amount
-        <*> (SplitEqually <$> selectedUsers)
+        <*> (SplitEqually . map SplitToUser <$> selectedUsers)
   return $ tagValid purchase addEv
 
 addSplitItem
@@ -381,13 +381,13 @@ addSplitItem users = do
     addEv  <- button "Add split item"
   let splitItem
         = SplitItem
-        <$> user
+        <$> SplitToUser <$> user
         <*> fmap (T.unpack) desc
         <*> amount
   return $ tagValid splitItem addEv
 
 splitWidget item = do
-  text . T.pack . splitItemUser $ item
+  text . T.pack . printUsersList . splitItemUsers $ item
   text ", "
   text . T.pack . splitItemDesc $ item
   text " -- "
@@ -552,18 +552,18 @@ actionWidget
   text " split equally to all"
 actionWidget
     action@( PurchaseAction
-      ( Purchase { purchaseSplit = SplitEqually [user] } )
+      ( Purchase { purchaseSplit = SplitEqually [splitTo] } )
     ) = do
   actionWidgetPayedFor action
   text " for "
-  text . T.pack $ user
+  text . T.pack . printUsersList . splitToToUsers $ splitTo
 actionWidget
     action@( PurchaseAction
-      ( Purchase { purchaseSplit = SplitEqually users } )
+      ( Purchase { purchaseSplit = SplitEqually splitTos } )
     ) = do
   actionWidgetPayedFor action
   text " split equally to "
-  text . T.pack . printUsersList $ users
+  text . T.pack . printUsersList . splitTosUsers $ splitTos
 actionWidget
     action@( PurchaseAction
       ( Purchase { purchaseSplit = ItemizedSplit splits } )
@@ -611,4 +611,3 @@ main = mainWidgetWithCss $(embedFile "split.css") $ do
   el "h2" $ text "Report"
   dyn (report <$> actions <*> nullified)
   return ()
-
