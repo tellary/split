@@ -10,7 +10,6 @@
 
 import           Control.Monad     (forM, join)
 import           Control.Monad.Fix (MonadFix)
-import           Data.Either       (fromLeft, fromRight, isLeft, isRight)
 import           Data.FileEmbed    (embedFile)
 import           Data.List         (delete, find, (\\))
 import qualified Data.Map          as M
@@ -24,10 +23,11 @@ import           SplitReport
 import           Text.Printf       (printf)
 import           Text.Read         (readMaybe)
 import           ValidDynamic      (ValidDynamic, assumeValidDynamic,
-                                    dropValidDynamic, errorDyn, fromDynamic,
-                                    fromDynamicEither, tagValid)
+                                    dropValidDynamic, errorDyn, errorWidget,
+                                    fromDynamic, fromDynamicEither, fromEvent,
+                                    tagValid, unwrapValidDynamicWidget)
 resettableInput
-  :: forall t m a b . (DomBuilder t m, MonadHold t m, MonadFix m)
+  :: forall t m a b . (Show b, DomBuilder t m, MonadHold t m, MonadFix m)
   => Event t a -> (Text -> Either Text b)
   -> m (Event t b, ValidDynamic t Text b)
 resettableInput submitEvent validation = do
@@ -113,24 +113,23 @@ userListItem :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m)
 userListItem actions user = el "li" $ do
   dynText (T.pack <$> user)
   deleteUserEv <- switchHold never =<< (dyn $ deleteX <$> user)
-  let deleteUserOrErrorEv :: Event t (Either Text User)
-        = switchDyn . ffor actions $ \actions ->
-            ffor deleteUserEv $ \user ->
-              case find (isUserAction user) (actionsArr actions) of
+  deleteUserValid <- unwrapValidDynamicWidget "" $ do
+    actionsArrVal <- actionsArr <$> actions
+    userVal       <- user
+    return . fromEvent Nothing (Just <$> deleteUserEv)
+      $ \case
+         Nothing -> Right userVal
+         Just user
+           -> case find (isUserAction user) actionsArrVal of
                 Just userAction
-                  -> Left . T.pack
-                  $ printf "Can't delete user '%s' because '%s' action exists"
-                    user (show userAction)
+                  -> Left (user, userAction)
                 Nothing -> Right user
-  let deleteValidUserEv :: Event t User
-        = fmap (fromRight (error "Already checked for 'isRight'"))
-        . ffilter isRight $ deleteUserOrErrorEv
-  let deleteUserErrorEv :: Event t Text
-        = fmap (fromLeft (error "Already checked for 'isLeft'"))
-        . ffilter isLeft $ deleteUserOrErrorEv
   text " "
-  dynText =<< (holdDyn "" $ leftmost [deleteUserErrorEv, "" <$ updated actions])
-  return deleteValidUserEv
+  errorWidget never deleteUserValid (return ()) $ \(user, action) -> do
+      text . T.pack $ printf "Can't delete user '%s' because action exists: " user
+      actionWidget action
+      return ()
+  return $ tagValid deleteUserValid deleteUserEv
 
 addGroup
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)

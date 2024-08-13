@@ -13,6 +13,11 @@ import Reflex.Dom
 
 type ValidDynamic t err a = ExceptT err (Dynamic t) a
 
+traceEnabled = False
+
+traceEventIfEnabled :: (Show a, Reflex t) => String -> Event t a -> Event t a
+traceEventIfEnabled = if traceEnabled then traceEvent else flip const
+
 fromDynamic
   :: Reflex t
   => Dynamic t a -> (a -> Either err b) -> ValidDynamic t err b
@@ -41,10 +46,12 @@ assumeValidValue = ExceptT . fmap Right . pure
 
 maybeValidValue = either (const Nothing) Just
 
-tagValid :: Reflex t => ValidDynamic t err a -> Event t b -> Event t a
+tagValid
+  :: (Show a, Show err, Reflex t)
+  => ValidDynamic t err a -> Event t b -> Event t a
 tagValid (ExceptT validInput) submitEvent
   = mapMaybe maybeValidValue
-  . (tag . current) validInput
+  . traceEventIfEnabled "tagValid" . tagPromptlyDyn validInput
   $ submitEvent
 
 errorDyn
@@ -56,7 +63,21 @@ errorDyn noErrorVal submitEvent (ExceptT validDynamic) = do
     ( tagPromptlyDyn error
       ( leftmost [() <$ submitEvent, () <$ updated validDynamic] )
     )
-  
+
+errorWidget
+  :: forall t m a b c err . (Reflex t, Adjustable t m, MonadHold t m)
+  => Event t b -> ValidDynamic t err a -> m c -> (err -> m c) -> m (Dynamic t c)
+errorWidget
+    submitEvent
+    (ExceptT validDynamic)
+    noErrorWidget errorWidget = do
+  let error :: Dynamic t (m c) = fmap (either errorWidget (const noErrorWidget)) validDynamic
+  widgetHold
+    noErrorWidget
+    ( tagPromptlyDyn error
+       ( leftmost [() <$ submitEvent, () <$ updated validDynamic] )
+    )
+
 unwrapValidDynamicWidget :: (DomBuilder t m, MonadHold t m, PostBuild t m)
   => a -> Dynamic t (m (ValidDynamic t err a)) -> m (ValidDynamic t err a)
 unwrapValidDynamicWidget initVal dynWidget
