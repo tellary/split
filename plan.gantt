@@ -74,13 +74,15 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 -- Core logic --
 
 [Implement split by a user or by a group logic] is 100% completed and starts on 2024-08-13
-then [Logic: Support tips in "itemized split"] is 0% completed
+[Support tips in "itemized split"] is 0% completed and starts on 2024-08-13 and ends on 2024-08-14
+then ["Oysters & Margarita", "If-if-if" and pizzeria test case] is 0% completed
 
 -- Implement Web UI --
 
-[Implement split by a user or by a group in UI] is 0% completed and starts at [Implement split by a user or by a group logic]'s end
-then [UI: Support tips in "itemized split"] is 0% completed
+[Implement split by a user or by a group on UI] is 0% completed and starts on 2024-08-14
+[Support tips in "itemized split" on UI] is 0% completed and starts on 2024-08-14
 then [Move user management to a separate tab] is 0% completed
+2024-08-17 is open
 then [Implement multiple workspaces] is 0% completed and requires 2 days
 then [Store state in browser storage] is 0% completed and requires 2 days
 then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
