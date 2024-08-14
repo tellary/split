@@ -74,8 +74,8 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 -- Core logic --
 
 [Implement split by a user or by a group logic] is 100% completed and starts on 2024-08-13
-[Support tips in "itemized split"] is 0% completed and starts on 2024-08-13 and ends on 2024-08-14
-then ["Oysters & Margarita", "If-if-if" and pizzeria test case] is 0% completed
+[Support tips in "itemized split"] is 100% completed and starts on 2024-08-13 and ends on 2024-08-14
+["Oysters & Margarita", "If-if-if" and Crouton test case] is 30% completed and starts on 2024-08-14
 
 -- Implement Web UI --
 

@@ -437,7 +437,7 @@ addItemizedSplitPurchase users = do
         <*> fmap (T.unpack) desc
         <*> (fmap (sum . map splitItemAmount) . assumeValidDynamic
              $ splitItems)
-        <*> (fmap ItemizedSplit . assumeValidDynamic $ splitItems)
+        <*> (fmap (ItemizedSplit Nothing) . assumeValidDynamic $ splitItems)
   return $ tagValid purchase addEv
 
 preselectedUsersDropdown users selectedUser =
@@ -566,7 +566,7 @@ actionWidget
   text . T.pack . printUsersList . splitTosUsers $ splitTos
 actionWidget
     action@( PurchaseAction
-      ( Purchase { purchaseSplit = ItemizedSplit splits } )
+      ( Purchase { purchaseSplit = ItemizedSplit Nothing splits } )
     ) = do
   actionWidgetPayedFor action
   text " split in "

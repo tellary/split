@@ -45,19 +45,19 @@ accountUsers (GroupAccount group) = group
 round2 :: Decimal -> Decimal
 round2 d = fromIntegral (round (d*100) :: Integer) / 100
 
-divAmounts :: Decimal -> [Int] -> [Decimal]
+divAmounts :: Decimal -> [Decimal] -> [Decimal]
 divAmounts d weights = reverse $ loop d weights []
   where
-    n :: Int
+    n :: Decimal
     n = sum weights
     part :: Decimal
-    part = round2 (d/fromIntegral n)
-    loop :: Decimal -> [Int] -> [Decimal] -> [Decimal]
+    part = round2 (d/n)
+    loop :: Decimal -> [Decimal] -> [Decimal] -> [Decimal]
     loop _    []  _      = error "Recursion must end at [_]"
     loop left [_] result = left:result
     loop left (w:ws) result
       = loop (left - weightedPart) ws (weightedPart:result)
-      where weightedPart = fromIntegral w * part
+      where weightedPart = round2 $ w * part
 
 data TxReason = TxReasonPurchase Purchase | TxReasonPayment
   deriving (Show, Eq, Ord)
@@ -148,16 +148,31 @@ splitToToAccount groupsByUsersVal (SplitToGroup (user:_))
 splitToToAccount _                (SplitToGroup [])
   = error "'SplitToGroup' can't be empty"
 
+data SplitTipsItem
+  = SplitTipsItem
+  { splitTipsTo :: SplitTo
+  , splitTipsAmount :: Amount
+  } deriving (Show, Eq, Ord)
+
+data SplitTips
+  = SplitTipsEqually [SplitTo]
+  | SplitTipsEquallyAll
+  | ItemizedSplitTips [SplitTipsItem]
+  | RelativeSplitTips
+  deriving (Show, Eq, Ord)
+
+data Tips = Tips Int SplitTips deriving (Show, Eq, Ord)
+
 data Split
   = SplitEqually [SplitTo]
   | SplitEquallyAll
   -- TODO: Validate ItemizedSplit sum == purchaseAmount
-  | ItemizedSplit [SplitItem]
+  | ItemizedSplit (Maybe Tips) [SplitItem]
   deriving (Show, Eq, Ord)
 
 isUserPurchase user = (== user) . purchaseUser
 
-maybeSplitItems (ItemizedSplit items) = Just items
+maybeSplitItems (ItemizedSplit _ items) = Just items
 maybeSplitItems  _                    = Nothing
 
 splitItemsForAccount :: [SplitItem] -> Account -> [SplitItem]
@@ -171,7 +186,7 @@ splitItemUsers = splitToToUsers . splitItemTo
 
 splitUsers actions  SplitEquallyAll      = actionsUsers actions
 splitUsers _       (SplitEqually splitTos ) = splitTosUsers splitTos
-splitUsers _       (ItemizedSplit items) = splitItemsUsers $ items
+splitUsers _       (ItemizedSplit _ items) = splitItemsUsers $ items
 
 purchaseSplitUsers actions (Purchase { purchaseSplit = split })
   = splitUsers actions split
@@ -179,6 +194,9 @@ purchaseSplitUsers actions (Purchase { purchaseSplit = split })
 data Action
   = PurchaseAction Purchase | PaymentAction User User Amount
   deriving (Eq, Show)
+
+maybePurchase (PurchaseAction purchase) = Just purchase
+maybePurchase _ = Nothing
 
 isUserAction user (PaymentAction u1 u2 _) = user == u1 || user == u2
 isUserAction user (PurchaseAction p) = isUserPurchase user p
@@ -222,6 +240,69 @@ userToAccount groupsByUsers user
       Nothing -> UserAccount user
       Just group -> GroupAccount group
 
+tipsAmount tips
+  = round2
+    . (((fromIntegral tips)/100) *)
+    . sum
+    . map splitItemAmount
+
+addTips :: [User] -> Maybe Tips -> [SplitItem] -> [SplitItem]
+addTips _  Nothing items = items
+addTips _ (Just (Tips tips (SplitTipsEqually splitTos))) items
+  = items
+  ++ ( map
+       (\(splitTo, tipAmount)
+          -> SplitItem
+             splitTo
+             ( printf "%d%% tips shared equally to %d people"
+               tips (length splitTos)
+             )
+             tipAmount
+       ) $ zip splitTos tipsPerSplitTo
+     )
+  where
+    tipsPerSplitTo
+      = divAmounts
+        (tipsAmount tips items)
+        (map (fromIntegral . length . splitToToUsers) splitTos)
+addTips users (Just (Tips tips SplitTipsEquallyAll)) items
+  = addTips
+    users
+    (Just (Tips tips (SplitTipsEqually (map SplitToUser users))))
+    items
+addTips _     (Just (Tips tips (ItemizedSplitTips tipItems))) items
+  = items
+  ++ map toItem tipItems
+  where
+    toItem tipItem
+      = SplitItem
+        ( splitTipsTo tipItem )
+        ( printf "%d%% tips split exactly" tips )
+        ( splitTipsAmount tipItem )
+addTips _     (Just (Tips tips RelativeSplitTips)) items
+  = items
+  ++ ( map
+       (\(splitTo, tipAmount)
+          -> SplitItem
+             splitTo
+             ( printf "%d%% tips" tips )
+             tipAmount
+       ) $ zip splitTos tipsPerSplitTo
+     )
+  where
+    (splitTos, weights) = unzip . sumSplitAmountByTo $ items
+    tipsPerSplitTo
+      = divAmounts
+        (tipsAmount tips items)
+        weights
+
+-- | Sums all split item amounts by 'SplitTo'
+sumSplitAmountByTo :: [SplitItem] -> [(SplitTo, Decimal)]
+sumSplitAmountByTo
+  = map (\grp -> (splitItemTo . head $ grp, sum . map splitItemAmount $ grp))
+  . groupOn splitItemTo
+  . sortOn splitItemTo
+
 toTransactions :: Actions -> Action -> [Transaction]
 toTransactions (Actions _ groups _) (PurchaseAction
                   purchase@(Purchase debitUser _ amount (SplitEqually splitTos)))
@@ -235,7 +316,12 @@ toTransactions (Actions _ groups _) (PurchaseAction
         amount
         (TxReasonPurchase purchase)
     )
-  $ zip splitTos (divAmounts amount (map (length . splitToToUsers) splitTos))
+  $ zip
+    splitTos
+    ( divAmounts
+      amount
+      ( map (fromIntegral . length . splitToToUsers) splitTos )
+    )
   where groupsByUsersVal = groupsByUsers groups
 toTransactions
   actions@(Actions users _ _)
@@ -245,9 +331,9 @@ toTransactions
     (PurchaseAction
      (Purchase debitUser desc amount (SplitEqually (map SplitToUser users))))
 toTransactions
-  (Actions _ groups _)
+  (Actions users groups _)
   (PurchaseAction
-    purchase@(Purchase debitUser _ _ (ItemizedSplit splitItems)))
+    purchase@(Purchase debitUser _ _ (ItemizedSplit tips splitItems)))
   = filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
     . map userSplitItemsToTx
     . map (\grp -> (fst . head $ grp, map snd grp))
@@ -256,7 +342,7 @@ toTransactions
                     , item
                     )
           )
-    $ splitItems
+    $ addTips users tips splitItems
   where
     userSplitItemsToTx :: (Account, [SplitItem]) -> Transaction
     userSplitItemsToTx (creditAccount, userSplitItems)
@@ -277,6 +363,7 @@ toTransactions
     ]
   where
     groupsByUsersVal = groupsByUsers groups
+
 balance :: Account -> [Transaction] -> Amount
 balance account transactions
   = ( sum . fromJust . sequence . filter isJust . map (creditAmount account)
@@ -768,7 +855,7 @@ printReport3 = putStrLn $ printReport nullify3 actions3
 
 users4 = ["Tasha", "Ilya", "Alena", "Dima"]
 berriesSplit4
-  = ItemizedSplit
+  = ItemizedSplit Nothing
     [ SplitItem (SplitToUser "Tasha") "1kg blackberry" 6
     , SplitItem (SplitToUser "Tasha") "1kg strawberry" 4
     , SplitItem (SplitToUser "Tasha") "1kg blueberry"  9
@@ -796,7 +883,7 @@ actions4
       )
     , PurchaseAction
       ( Purchase "Alena" "Berries in June" 9.5
-        ( ItemizedSplit
+        ( ItemizedSplit Nothing
           [ SplitItem (SplitToUser "Ilya") "1kg strawberry" 3.5
           , SplitItem (SplitToUser "Ilya") "1kg raspberry" 6
           ]
@@ -810,3 +897,88 @@ printNullify4 :: IO ()
 printNullify4 = pPrint nullify4
 
 printReport4 = putStrLn $ printReport nullify4 actions4
+
+actions5
+  = Actions
+    ["Dima", "Alena F.", "Tasha", "Ilya", "Vlad", "Alena L."]
+    [["Dima", "Alena F."], ["Tasha", "Ilya"], ["Vlad", "Alena L."]]
+    [ PurchaseAction
+      ( Purchase "Ilya" "Oysters & Margarita" 194.7
+        ( ItemizedSplit (Just (Tips 10 RelativeSplitTips))
+          [ SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "2x White Sauvignon"
+            12
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Bruschetta"
+            (15/2)
+          , SplitItem
+            ( SplitToGroup ["Vlad", "Alena L."] )
+            "1x Bruschetta"
+            (15/2)
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Oysters 12 un"
+            28.5
+          , SplitItem
+            ( SplitToGroup ["Dima", "Alena F."] )
+            "1x BRLO cerveja"
+            5
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Dorado warm"
+            (38/2)
+          , SplitItem
+            ( SplitToGroup ["Vlad", "Alena L."] )
+            "1x Dorado warm"
+            (38/2)
+          , SplitItem
+            ( SplitToGroup ["Vlad", "Alena L."] )
+            "2x Verde Paterna"
+            (22/2)
+          , SplitItem
+            ( SplitToGroup ["Dima", "Alena F."] )
+            "2x Verde Paterna"
+            (22/2)
+          , SplitItem
+            ( SplitToGroup ["Dima", "Alena F."] )
+            "1x Ice cream"
+            5
+          , SplitItem
+            ( SplitToGroup ["Vlad", "Alena L."] )
+            "1x Tuna tataki N"
+            13.5
+          , SplitItem
+            ( SplitToGroup ["Vlad", "Alena L."] )
+            "1x Rose da Casa"
+            5
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Burrata"
+            9.5
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Margarita Mez"
+            11.5
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Sexy Pear"
+            6.5
+          , SplitItem
+            ( SplitToGroup ["Tasha", "Ilya"] )
+            "1x Sparkling RS"
+            5.5
+          ]
+        )
+      )
+    ]
+-- λ> sum . map splitItemAmount . fromJust . maybeSplitItems . purchaseSplit . head . fromJust . sequence $ maybePurchase <$> actionsArr actions5
+-- 177.0
+
+nullify5 = nullifyBalances . actionsToTransactions $ actions5
+
+printNullify5 :: IO ()
+printNullify5 = pPrint nullify5
+
+printReport5 = putStrLn $ printReport nullify5 actions5

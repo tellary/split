@@ -24,9 +24,10 @@ import           MoneySplit          (Account, Actions (Actions), Amount,
                                                  splitItemDesc),
                                       Transaction (txAmount, txCreditAccount,
                                                    txDebitAccount),
-                                      TxReason (TxReasonPayment, TxReasonPurchase),
+                                      TxReason (TxReasonPayment,
+                                                TxReasonPurchase),
                                       Voice (Active, Passive), accountUsers,
-                                      actionsAccounts, balance,
+                                      actionsAccounts, addTips, balance,
                                       creditAccountTransactions,
                                       debitAccountTransactions,
                                       groupTransactionsByReason, groupsByUsers,
@@ -139,18 +140,18 @@ reportAccountSingleReasonDetails
         text . T.pack . printAccountList $ [acc]
   where groupsByUsersVal = groupsByUsers groups
 reportAccountSingleReasonDetails
-      actions@( Actions _ groups _ )
+      actions@( Actions users groups _ )
       ( TxReasonPurchase
         ( Purchase
           { purchaseUser = purchaseUser
           , purchaseDesc = purchaseDesc
           , purchaseAmount = purchaseAmount
-          , purchaseSplit = ItemizedSplit splitItems
+          , purchaseSplit = ItemizedSplit tips splitItems
           }
         )
       , _)
   = case accounts of
-      [acc] -> reportAccountSplitItems splitItems acc
+      [acc] -> reportAccountSplitItems splitItemsWithTips acc
       (_:_:_) -> el "p" $ do
         text . T.pack
           . printAccountList
@@ -162,9 +163,10 @@ reportAccountSingleReasonDetails
         text " for \""
         text . T.pack $ purchaseDesc
         text "\" split as follows:"
-        reportSplitItemsList actions splitItems
+        reportSplitItemsList actions splitItemsWithTips
       [] -> error "'ItemizedSplit' should split amoung at least 1 account"
   where
+    splitItemsWithTips = addTips users tips splitItems
     groupsByUsersVal = groupsByUsers groups
     accounts = usersToAccounts actions . splitItemsUsers $ splitItems
 reportAccountSingleReasonDetails _ (reason, _) = do
