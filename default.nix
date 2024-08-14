@@ -22,14 +22,7 @@ let pkgs = import
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
   ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;
-in {
-  ghc = pkgs.stdenv.mkDerivation {
-    name = "money-split";
-    buildInputs = [ghc];
-    src = ./.;
-  };
-
-  ghcjs = pkgs.stdenv.mkDerivation {
+  ghcjsFor = execName : pkgs.stdenv.mkDerivation {
     name = "money-split";
     buildInputs = [ghcjs];
     src = ./.;
@@ -37,13 +30,23 @@ in {
     unpackPhase = ''
       cp $src/*.hs $src/split.css $src/publish_report.sh $src/website.json .'';
     buildPhase = ''
-      ghcjs berries.hs
+      ghcjs ${execName}.hs
     '';
     installPhase = ''
       mkdir $out/
-      cp -r berries.jsexe $out/
+      cp -r ${execName}.jsexe $out/
       cp publish_report.sh website.json $out/
     '';
-    postInstall = "cp $src/html/* $out/berries.jsexe/";
+    postInstall = "cp $src/html/* $out/${execName}.jsexe/";
   };
+in {
+  ghc = pkgs.stdenv.mkDerivation {
+    name = "money-split";
+    buildInputs = [ghc];
+    src = ./.;
+  };
+
+  ghcjs = ghcjsFor "split";
+
+  ghcjsOysters202408 = ghcjsFor "oysters202408";
 }
