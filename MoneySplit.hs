@@ -900,7 +900,7 @@ printReport4 = putStrLn $ printReport nullify4 actions4
 
 actions5
   = Actions
-    ["Dima", "Alena F.", "Tasha", "Ilya", "Vlad", "Alena L."]
+    ["Dima", "Alena F.", "Tasha", "Ilya", "Vlad", "Alena L.", "Unknown"]
     [["Dima", "Alena F."], ["Tasha", "Ilya"], ["Vlad", "Alena L."]]
     [ PurchaseAction
       ( Purchase "Ilya" "Oysters & Margarita" 194.7
@@ -914,7 +914,7 @@ actions5
             "1x Bruschetta"
             (15/2)
           , SplitItem
-            ( SplitToGroup ["Vlad", "Alena L."] )
+            ( SplitToGroup ["Dima", "Alena F."] )
             "1x Bruschetta"
             (15/2)
           , SplitItem
@@ -935,12 +935,12 @@ actions5
             (38/2)
           , SplitItem
             ( SplitToGroup ["Vlad", "Alena L."] )
-            "2x Verde Paterna"
-            (22/2)
+            "1x Verde Paterna"
+            (22/4)
           , SplitItem
             ( SplitToGroup ["Dima", "Alena F."] )
-            "2x Verde Paterna"
-            (22/2)
+            "3x Verde Paterna"
+            (22*3/4)
           , SplitItem
             ( SplitToGroup ["Dima", "Alena F."] )
             "1x Ice cream"
@@ -950,7 +950,7 @@ actions5
             "1x Tuna tataki N"
             13.5
           , SplitItem
-            ( SplitToGroup ["Vlad", "Alena L."] )
+            ( SplitToGroup ["Dima", "Alena F."] )
             "1x Rose da Casa"
             5
           , SplitItem
@@ -982,3 +982,76 @@ printNullify5 :: IO ()
 printNullify5 = pPrint nullify5
 
 printReport5 = putStrLn $ printReport nullify5 actions5
+
+actions6
+  = Actions
+  { actionsUsers
+    = ["Dima", "Alena F.", "Tasha", "Ilya", "Vlad", "Alena L.", "Asya"]
+  , actionsGroups
+    = [["Dima", "Alena F."], ["Tasha", "Ilya"], ["Vlad", "Alena L."]]
+  , actionsArr =
+      actionsArr actions5 ++
+      [ PurchaseAction
+        ( Purchase "Dima" "Crouton" (1.1*172.5)
+          ( ItemizedSplit (Just (Tips 10 RelativeSplitTips))
+            [ SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "2x Aqua das Pedras"
+              (10/2)
+            , SplitItem
+              ( SplitToGroup ["Tasha", "Ilya"] )
+              "2x Aqua das Pedras"
+              (10/2)
+            , SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "3x Cerveja SG"
+              13.5
+            , SplitItem
+              ( SplitToGroup ["Tasha", "Ilya"] )
+              "3x Sparkling Brut"
+              27
+            , SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "1x Vinho a Copo"
+              6
+            , SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "1x Carpaccio Atum"
+              18
+            , SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "1x Pizza Especial"
+              (72/3)
+            , SplitItem
+              ( SplitToGroup ["Tasha", "Ilya"] )
+              "2x Pizza Especial"
+              (72*2/3)
+            , SplitItem
+              ( SplitToUser "Asya" )
+              "1x Refrigerante Bio"
+              4.5
+            , SplitItem
+              ( SplitToUser "Asya" )
+              "1x Sobremesa"
+              (19/2)
+            , SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "1x Sobremesa"
+              (19/2)
+            , SplitItem
+              ( SplitToGroup ["Dima", "Alena F."] )
+              "1x Cafe & Petit-four"
+              2.5
+            ]
+          )
+        )
+      , PaymentAction "Vlad" "Ilya" 41.8
+      ]
+  }
+
+nullify6 = nullifyBalances . actionsToTransactions $ actions6
+
+printNullify6 :: IO ()
+printNullify6 = pPrint nullify6
+
+printReport6 = putStrLn $ printReport nullify5 actions5

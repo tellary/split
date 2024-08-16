@@ -4,8 +4,11 @@ Project starts 2024-09-27
 saturday are closed
 sunday are closed
 
-[Don't allow "split equally" w/o users] is 0% completed
 then [Don't add purchase when only one user group exists] is 0% completed
+then [Add validation that sum of split items == amount of the cheque] is 0% completed
+then [Support "number of units in an item" in "itemized split"] is 0% completed
+then [Edit split item purchases] is 0% completed
+then [Claim units of split items] is 0% completed
 then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
 then [Preserve user, amount and description between different types of purchases] is 0% completed
 then [Implement editing of purchases] is 0% completed and requires 2 days

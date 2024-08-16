@@ -6,20 +6,9 @@
 
 import Data.FileEmbed (embedFile)
 import MoneySplit
-import Reflex.Dom     (blank, el, mainWidgetWithCss, text)
+import Reflex.Dom     (mainWidgetWithCss)
 import SplitReport
 
 main :: IO ()
 main = mainWidgetWithCss $(embedFile "split.css") $ do
   report actions6 nullify6
-  text "------"; el "br" blank
-  report actions5 nullify5
-  text "------"; el "br" blank
-  report actions4 nullify4
-  text "------"; el "br" blank
-  report actions3 nullify3
-  text "------"; el "br" blank
-  report actions2 nullify2
-  text "------"; el "br" blank
-  report actions1 nullify1
-
