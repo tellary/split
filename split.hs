@@ -18,7 +18,6 @@ import           Data.Text         (Text)
 import qualified Data.Text         as T
 import           Data.These        (These (These))
 import           MoneySplit        hiding (addTips)
-import qualified MoneySplit
 import           Reflex.Dom        hiding (Group)
 import           SplitReport
 import           Text.Printf       (printf)
@@ -207,10 +206,12 @@ validInput submitEvent validation = do
   dynText =<< errorDyn "" submitEvent inputValueValid
   return inputValueValid
 
-dynToDyn :: (Adjustable t m, NotReady t m, MonadHold t m, PostBuild t m)
+unwrapDynWidget :: (Adjustable t m, NotReady t m, MonadHold t m, PostBuild t m)
   => a -> Dynamic t (m (Dynamic t a)) -> m (Dynamic t a)
-dynToDyn initVal dynWidget =
+unwrapDynWidget initVal dynWidget =
   join <$> (holdDyn (constDyn initVal) =<< dyn dynWidget)
+
+unwrapEventWidget evWidget = switchHold never =<< dyn evWidget
 
 dynToEvent
   :: (Adjustable t m, NotReady t m, PostBuild t m, MonadHold t m)
@@ -256,7 +257,7 @@ userInput
   => Text -> Dynamic t [User] -> m (ValidDynamic t Text User)
 userInput label users = do
   text $ label `T.append` ": "
-  user :: ValidDynamic t Text User <- fromDynamicEither <$> dynToDyn
+  user :: ValidDynamic t Text User <- fromDynamicEither <$> unwrapDynWidget
     ( Left "" )
     ( ffor users $ \users -> do
         if length users < 2
@@ -325,7 +326,7 @@ addSplitAllPurchase users = do
 selectUserItem
   :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
   => String -> Dynamic t User -> m (Dynamic t Bool)
-selectUserItem idPrefix user = dynToDyn False $ do
+selectUserItem idPrefix user = unwrapDynWidget False $ do
   user <- user
   let widget :: m (Dynamic t Bool) = do
         cb <- inputElement
@@ -387,12 +388,25 @@ addSplitItem users = do
         <*> amount
   return $ tagValid splitItem addEv
 
-splitWidget item = do
+splitItemWidget :: DomBuilder t m
+  => SplitItemOnView
+  -> m (Event t SplitItemOnView)
+splitItemWidget onView@(SplitItemOnView deletable item) = el "li" $ do
   text . T.pack . printUsersList . splitItemUsers $ item
   text ", "
   text . T.pack . splitItemDesc $ item
   text " -- "
   text . T.pack . show . splitItemAmount $ item
+  ev <- if deletable
+        then deleteX onView
+        else return never
+  el "br" $ blank
+  return ev
+
+type CanBeDeleted = Bool
+data SplitItemOnView = SplitItemOnView CanBeDeleted SplitItem deriving Eq
+
+splitItemOnView (SplitItemOnView _ item) = item
 
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
@@ -403,7 +417,7 @@ manageSplitItems tips users groups = do
     splitItems <-
       foldDyn ($) []
       ( mergeWith (.)
-        [ (:) <$> addSplitItemEv
+        [ (:) . SplitItemOnView True <$> addSplitItemEv
         , delete <$> deleteSplitItemEv
         ]
       )
@@ -412,11 +426,21 @@ manageSplitItems tips users groups = do
           users <- users
           groups <- groups
           tips <- tips
-          return $ MoneySplit.addTips users groups tips splitItems
+          return
+            $  splitItems
+            ++ ( map (SplitItemOnView False)
+                 . tipItems users groups tips
+                 . map splitItemOnView
+                 $ splitItems
+               )
     el "h5" $ text "Split items"
-    deleteSplitItemEv <- dynList splitWidget splitItemsWithTips
-  return splitItems
-
+    deleteSplitItemEv <-
+      el "ul" . simpleListOneEvent splitItemsWithTips
+        $ \itemDyn -> unwrapEventWidget $ do
+            item <- itemDyn
+            return $ splitItemWidget item
+  return . fmap (map splitItemOnView) $ splitItems
+      
 nestedWidget :: DomBuilder t m => Text -> m a -> m a
 nestedWidget label widget = do
   elAttr "table" ("class" =: "nested") $ do
@@ -471,7 +495,7 @@ addTips users = do
                            )
                            def
               el "br" $ blank
-              dynToDyn Nothing $ do
+              unwrapDynWidget Nothing $ do
                   splitType <- splitType
                   return case splitType of
                     SplitTipsEquallyType -> do
@@ -484,7 +508,7 @@ addTips users = do
                       return . return . Just $ Tips tips RelativeSplitTips
           )
           $ tips
-  dynToDyn Nothing tipsMaybeDynDyn
+  unwrapDynWidget Nothing tipsMaybeDynDyn
 
 addItemizedSplitPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)

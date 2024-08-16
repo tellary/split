@@ -247,49 +247,49 @@ tipsAmount tips
     . map splitItemAmount
 
 addTips :: [User] -> [Group] -> Maybe Tips -> [SplitItem] -> [SplitItem]
-addTips _ _  Nothing items = items
-addTips _ _ (Just (Tips tips (SplitTipsEqually splitTos))) items
-  = items
-  ++ ( map
-       (\(splitTo, tipAmount)
-          -> SplitItem
-             splitTo
-             ( printf "%d%% tips shared equally to %d people"
-               tips (length splitTos)
-             )
-             tipAmount
-       ) $ zip splitTos tipsPerSplitTo
-     )
+addTips users groups tips items = items ++ tipItems users groups tips items
+
+tipItems :: [User] -> [Group] -> Maybe Tips -> [SplitItem] -> [SplitItem]
+tipItems _ _  Nothing _ = []
+tipItems _ _ (Just (Tips tips (SplitTipsEqually [splitTo]))) items
+  = [SplitItem splitTo ( printf "%d%% tips" tips ) (tipsAmount tips items)]
+tipItems _ _ (Just (Tips tips (SplitTipsEqually splitTos))) items
+  = map
+    (\(splitTo, tipAmount)
+       -> SplitItem
+          splitTo
+          ( printf "%d%% tips shared equally to %d people"
+            tips (length splitTos)
+          )
+          tipAmount
+    ) $ zip splitTos tipsPerSplitTo
   where
     tipsPerSplitTo
       = divAmounts
         (tipsAmount tips items)
         (map (fromIntegral . length . splitToToUsers) splitTos)
-addTips users groups (Just (Tips tips SplitTipsEquallyAll)) items
-  = addTips
+tipItems users groups (Just (Tips tips SplitTipsEquallyAll)) items
+  = tipItems
     users
     groups
     (Just (Tips tips (SplitTipsEqually (map SplitToUser users))))
     items
-addTips _ _ (Just (Tips tips (ItemizedSplitTips tipItems))) items
-  = items
-  ++ map toItem tipItems
+tipItems _ _ (Just (Tips tips (ItemizedSplitTips tipItems))) _
+  = map toItem tipItems
   where
     toItem tipItem
       = SplitItem
         ( splitTipsTo tipItem )
         ( printf "%d%% tips split exactly" tips )
         ( splitTipsAmount tipItem )
-addTips _ groups (Just (Tips tips RelativeSplitTips)) items
-  = items
-  ++ ( map
-       (\(splitTo, tipAmount)
-          -> SplitItem
-             splitTo
-             ( printf "%d%% tips" tips )
-             tipAmount
-       ) $ zip splitTos tipsPerSplitTo
-     )
+tipItems _ groups (Just (Tips tips RelativeSplitTips)) items
+  = map
+    (\(splitTo, tipAmount)
+       -> SplitItem
+          splitTo
+          ( printf "%d%% tips" tips )
+          tipAmount
+    ) $ zip splitTos tipsPerSplitTo
   where
     (splitTos, weights) = unzip . sumSplitAmountByTo groups $ items
     tipsPerSplitTo
