@@ -166,7 +166,7 @@ reportAccountSingleReasonDetails
         reportSplitItemsList actions splitItemsWithTips
       [] -> error "'ItemizedSplit' should split amoung at least 1 account"
   where
-    splitItemsWithTips = addTips users tips splitItems
+    splitItemsWithTips = addTips users groups tips splitItems
     groupsByUsersVal = groupsByUsers groups
     accounts = usersToAccounts actions . splitItemsUsers $ splitItems
 reportAccountSingleReasonDetails _ (reason, _) = do

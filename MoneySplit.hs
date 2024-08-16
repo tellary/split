@@ -246,9 +246,9 @@ tipsAmount tips
     . sum
     . map splitItemAmount
 
-addTips :: [User] -> Maybe Tips -> [SplitItem] -> [SplitItem]
-addTips _  Nothing items = items
-addTips _ (Just (Tips tips (SplitTipsEqually splitTos))) items
+addTips :: [User] -> [Group] -> Maybe Tips -> [SplitItem] -> [SplitItem]
+addTips _ _  Nothing items = items
+addTips _ _ (Just (Tips tips (SplitTipsEqually splitTos))) items
   = items
   ++ ( map
        (\(splitTo, tipAmount)
@@ -265,12 +265,13 @@ addTips _ (Just (Tips tips (SplitTipsEqually splitTos))) items
       = divAmounts
         (tipsAmount tips items)
         (map (fromIntegral . length . splitToToUsers) splitTos)
-addTips users (Just (Tips tips SplitTipsEquallyAll)) items
+addTips users groups (Just (Tips tips SplitTipsEquallyAll)) items
   = addTips
     users
+    groups
     (Just (Tips tips (SplitTipsEqually (map SplitToUser users))))
     items
-addTips _     (Just (Tips tips (ItemizedSplitTips tipItems))) items
+addTips _ _ (Just (Tips tips (ItemizedSplitTips tipItems))) items
   = items
   ++ map toItem tipItems
   where
@@ -279,7 +280,7 @@ addTips _     (Just (Tips tips (ItemizedSplitTips tipItems))) items
         ( splitTipsTo tipItem )
         ( printf "%d%% tips split exactly" tips )
         ( splitTipsAmount tipItem )
-addTips _     (Just (Tips tips RelativeSplitTips)) items
+addTips _ groups (Just (Tips tips RelativeSplitTips)) items
   = items
   ++ ( map
        (\(splitTo, tipAmount)
@@ -290,18 +291,29 @@ addTips _     (Just (Tips tips RelativeSplitTips)) items
        ) $ zip splitTos tipsPerSplitTo
      )
   where
-    (splitTos, weights) = unzip . sumSplitAmountByTo $ items
+    (splitTos, weights) = unzip . sumSplitAmountByTo groups $ items
     tipsPerSplitTo
       = divAmounts
         (tipsAmount tips items)
         weights
 
+replaceUsersWithGroupsInSplitTos groups splitItems
+  = map maybeReplaceTo splitItems
+  where
+    maybeReplaceTo item@(SplitItem (SplitToUser user) _ _)
+      = case lookup user groupsByUsersVal of
+          Nothing -> item
+          Just group -> item { splitItemTo = SplitToGroup group }
+    maybeReplaceTo item@(SplitItem (SplitToGroup _) _ _) = item
+    groupsByUsersVal = groupsByUsers groups
+
 -- | Sums all split item amounts by 'SplitTo'
-sumSplitAmountByTo :: [SplitItem] -> [(SplitTo, Decimal)]
-sumSplitAmountByTo
+sumSplitAmountByTo :: [Group] -> [SplitItem] -> [(SplitTo, Decimal)]
+sumSplitAmountByTo groups
   = map (\grp -> (splitItemTo . head $ grp, sum . map splitItemAmount $ grp))
   . groupOn splitItemTo
   . sortOn splitItemTo
+  . replaceUsersWithGroupsInSplitTos groups
 
 toTransactions :: Actions -> Action -> [Transaction]
 toTransactions (Actions _ groups _) (PurchaseAction
@@ -342,7 +354,7 @@ toTransactions
                     , item
                     )
           )
-    $ addTips users tips splitItems
+    $ addTips users groups tips splitItems
   where
     userSplitItemsToTx :: (Account, [SplitItem]) -> Transaction
     userSplitItemsToTx (creditAccount, userSplitItems)

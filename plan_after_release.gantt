@@ -4,7 +4,8 @@ Project starts 2024-09-27
 saturday are closed
 sunday are closed
 
-then [Don't add purchase when only one user group exists] is 0% completed
+[Don't add purchase when only one user group exists] is 0% completed
+then [support itemized 'ItemizedSplitTipsType' on UI] is 0% completed
 then [Add validation that sum of split items == amount of the cheque] is 0% completed
 then [Support "number of units in an item" in "itemized split"] is 0% completed
 then [Edit split item purchases] is 0% completed

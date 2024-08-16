@@ -17,7 +17,8 @@ import           Data.Maybe        (isNothing)
 import           Data.Text         (Text)
 import qualified Data.Text         as T
 import           Data.These        (These (These))
-import           MoneySplit
+import           MoneySplit        hiding (addTips)
+import qualified MoneySplit
 import           Reflex.Dom        hiding (Group)
 import           SplitReport
 import           Text.Printf       (printf)
@@ -246,7 +247,7 @@ addAction users groups = do
       PurchaseSplitEquallyActionType
         -> fmap (fmap PurchaseAction) $ addSplitEquallyPurchase users
       PurchaseItemizedSplitActionType
-        -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users
+        -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users groups
       PaymentTransactionActionType
         -> addPaymentTransaction users groups
 
@@ -394,8 +395,9 @@ splitWidget item = do
   text . T.pack . show . splitItemAmount $ item
 
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Dynamic t [SplitItem])
-manageSplitItems users = do
+  => Dynamic t (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
+  -> m (Dynamic t [SplitItem])
+manageSplitItems tips users groups = do
   addSplitItemEv <- addSplitItem users
   rec
     splitItems <-
@@ -405,14 +407,89 @@ manageSplitItems users = do
         , delete <$> deleteSplitItemEv
         ]
       )
+    let splitItemsWithTips = do
+          splitItems <- splitItems
+          users <- users
+          groups <- groups
+          tips <- tips
+          return $ MoneySplit.addTips users groups tips splitItems
     el "h5" $ text "Split items"
-    deleteSplitItemEv <- dynList splitWidget splitItems
+    deleteSplitItemEv <- dynList splitWidget splitItemsWithTips
   return splitItems
+
+nestedWidget :: DomBuilder t m => Text -> m a -> m a
+nestedWidget label widget = do
+  elAttr "table" ("class" =: "nested") $ do
+    result <- el "tr" $ do
+      elAttr "td" ("class" =: "nested") $ do
+        text label
+      elAttr "td" ("rowspan" =: "2" <> "class" =: "nested") $ do
+        widget
+    el "tr" $ do
+      el "td" $ blank
+    return result
+
+data SplitTipsType
+  = SplitTipsEquallyType
+  | SplitTipsEquallyAllType
+--  | ItemizedSplitTipsType
+  | RelativeSplitTipsType
+  deriving (Eq, Ord)
+
+manageSplitTipsItems
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [User]
+  -> m (Dynamic t [SplitTipsItem])
+manageSplitTipsItems = do
+  undefined
+
+addTips
+  :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t [User] -> m (Dynamic t (Maybe Tips))
+addTips users = do
+  text "Tip percentage: "
+  tips <- value
+          <$> (dropdown
+              Nothing
+              (constDyn (Just 10 =: "10%" <> Just 20 =: "20%"))
+              def)
+  el "br" $ blank
+  let tipsMaybeDynDyn :: Dynamic t (m (Dynamic t (Maybe Tips))) = do
+        tips <- tips
+        return $ maybe
+          ( return . return $ Nothing )
+          ( \tips -> do
+              text "How to split tips? "
+              splitType <- value <$> dropdown
+                             RelativeSplitTipsType
+                             ( constDyn
+                             (  SplitTipsEquallyType    =: "Split equally"
+                             <> SplitTipsEquallyAllType =: "Split equally all"
+                             -- <> ItemizedSplitTipsType   =: "Itemized split"
+                             <> RelativeSplitTipsType   =: "Split relatively"
+                             )
+                           )
+                           def
+              el "br" $ blank
+              dynToDyn Nothing $ do
+                  splitType <- splitType
+                  return case splitType of
+                    SplitTipsEquallyType -> do
+                      users <- selectUsers "tipsUsers" users
+                      let splitTos = fmap (map SplitToUser) users
+                      return (Just <$> (Tips <$> constDyn tips <*> (SplitTipsEqually <$> splitTos)))
+                    SplitTipsEquallyAllType ->
+                      return . return . Just $ Tips tips SplitTipsEquallyAll
+                    RelativeSplitTipsType ->
+                      return . return . Just $ Tips tips RelativeSplitTips
+          )
+          $ tips
+  dynToDyn Nothing tipsMaybeDynDyn
 
 addItemizedSplitPurchase
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Event t Purchase)
-addItemizedSplitPurchase users = do
+  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Purchase)
+addItemizedSplitPurchase users groups = do
   el "h3" $ text "Add \"itemized split\" purchase"
   user <- userInput "User" users
   rec
@@ -420,16 +497,8 @@ addItemizedSplitPurchase users = do
     text "Amount: "
     let amount = fmap (sum . map splitItemAmount) $ splitItems
     dynText . fmap (T.pack . show) $ amount
-    splitItems <- 
-      elAttr "table" ("class" =: "nested") $ do
-        splitItems <- el "tr" $ do
-          elAttr "td" ("class" =: "nested") $ do
-            text "Split items: "
-          elAttr "td" ("rowspan" =: "2" <> "class" =: "nested") $ do
-            manageSplitItems users
-        el "tr" $ do
-          el "td" $ blank
-        return splitItems
+    tips <- nestedWidget "Tips: " (addTips users)
+    splitItems <- nestedWidget "Split items: " $ manageSplitItems tips users groups
     addEv <- button "Add purchase"
   let purchase
         = Purchase
@@ -437,7 +506,7 @@ addItemizedSplitPurchase users = do
         <*> fmap (T.unpack) desc
         <*> (fmap (sum . map splitItemAmount) . assumeValidDynamic
              $ splitItems)
-        <*> (fmap (ItemizedSplit Nothing) . assumeValidDynamic $ splitItems)
+        <*> ( assumeValidDynamic $ ItemizedSplit <$> tips <*> splitItems )
   return $ tagValid purchase addEv
 
 preselectedUsersDropdown users selectedUser =
@@ -572,6 +641,16 @@ actionWidget
   text " split in "
   text . T.pack . show . length $ splits
   text " items"
+actionWidget
+    action@( PurchaseAction
+      ( Purchase { purchaseSplit = ItemizedSplit (Just (Tips tips _)) splits } )
+    ) = do
+  actionWidgetPayedFor action
+  text " split in "
+  text . T.pack . show . length $ splits
+  text " items with "
+  text . T.pack . show $ tips
+  text "% tips"
 actionWidget ( PaymentAction debitUser creditUser amount ) = do
   text . T.pack $ debitUser
   text " payed "
