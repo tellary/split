@@ -19,9 +19,10 @@ let pkgs = import
       extra
       monadlist
       file-embed
+      utf8-string
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
-  ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;
+  ghcjs = reflex-platform.ghcjs.ghcWithPackages (pkgs: with pkgs; deps pkgs ++ [ghcjs-base]);
   ghcjsFor = execName : pkgs.stdenv.mkDerivation {
     name = "money-split";
     buildInputs = [ghcjs];

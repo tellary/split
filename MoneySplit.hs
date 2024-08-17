@@ -1,17 +1,25 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-name-shadowing #-}
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns -Wno-orphans #-}
 module MoneySplit where
 
-import Data.Char          (toUpper)
-import Data.Decimal       (Decimal)
-import Data.List          (find, group, intercalate, nub, sort, sortBy, sortOn)
-import Data.List.Extra    (groupOn)
-import Data.Maybe         (fromJust, isJust)
-import Text.Pretty.Simple (pPrint)
-import Text.Printf        (printf)
+import           Control.Applicative (empty)
+import           Data.Aeson          (FromJSON (parseJSON), ToJSON (toJSON),
+                                      Value (String))
+import           Data.Char           (toUpper)
+import           Data.Decimal
+import           Data.List           (find, group, intercalate, nub, sort,
+                                      sortBy, sortOn)
+import           Data.List.Extra     (groupOn)
+import           Data.Maybe          (fromJust, isJust)
+import qualified Data.Text           as T
+import           GHC.Generics
+import           Text.Pretty.Simple  (pPrint)
+import           Text.Printf         (printf)
+import           Text.Read           (readMaybe)
 
 type Amount = Decimal
 type User = String
@@ -125,7 +133,10 @@ data SplitItem
   { splitItemTo     :: SplitTo
   , splitItemDesc   :: Desc
   , splitItemAmount :: Amount
-  } deriving (Show, Eq, Ord)
+  } deriving (Generic, Show, Eq, Ord)
+
+instance FromJSON SplitItem
+instance ToJSON SplitItem
 
 data Purchase
   = Purchase
@@ -133,10 +144,16 @@ data Purchase
   , purchaseDesc   :: Desc
   , purchaseAmount :: Amount
   , purchaseSplit  :: Split
-  } deriving (Show, Eq, Ord)
+  } deriving (Generic, Show, Eq, Ord)
+
+instance FromJSON Purchase
+instance ToJSON Purchase
 
 data SplitTo = SplitToUser User | SplitToGroup Group
-  deriving (Eq, Ord, Show)
+  deriving (Generic, Eq, Ord, Show)
+
+instance FromJSON SplitTo
+instance ToJSON SplitTo
 
 splitToToUsers (SplitToUser  user ) = [user]
 splitToToUsers (SplitToGroup group) = group
@@ -152,23 +169,35 @@ data SplitTipsItem
   = SplitTipsItem
   { splitTipsTo :: SplitTo
   , splitTipsAmount :: Amount
-  } deriving (Show, Eq, Ord)
+  } deriving (Generic, Show, Eq, Ord)
+
+instance FromJSON SplitTipsItem
+instance ToJSON SplitTipsItem
 
 data SplitTips
   = SplitTipsEqually [SplitTo]
   | SplitTipsEquallyAll
   | ItemizedSplitTips [SplitTipsItem]
   | RelativeSplitTips
-  deriving (Show, Eq, Ord)
+  deriving (Generic, Show, Eq, Ord)
 
-data Tips = Tips Int SplitTips deriving (Show, Eq, Ord)
+instance FromJSON SplitTips
+instance ToJSON SplitTips
+
+data Tips = Tips Int SplitTips deriving (Generic, Show, Eq, Ord)
+
+instance FromJSON Tips
+instance ToJSON Tips
 
 data Split
   = SplitEqually [SplitTo]
   | SplitEquallyAll
   -- TODO: Validate ItemizedSplit sum == purchaseAmount
   | ItemizedSplit (Maybe Tips) [SplitItem]
-  deriving (Show, Eq, Ord)
+  deriving (Generic, Show, Eq, Ord)
+
+instance FromJSON Split
+instance ToJSON Split
 
 isUserPurchase user = (== user) . purchaseUser
 
@@ -191,9 +220,21 @@ splitUsers _       (ItemizedSplit _ items) = splitItemsUsers $ items
 purchaseSplitUsers actions (Purchase { purchaseSplit = split })
   = splitUsers actions split
 
+instance (Read a, Integral a) => FromJSON (DecimalRaw a) where
+  parseJSON (String txt)
+    = case readMaybe . T.unpack $ txt of
+        Just d -> return d
+        Nothing -> empty
+  parseJSON _ = empty
+instance (Show a, Integral a) => ToJSON (DecimalRaw a) where
+  toJSON = String . T.pack . show
+
 data Action
   = PurchaseAction Purchase | PaymentAction User User Amount
-  deriving (Eq, Show)
+  deriving (Generic, Eq, Show)
+
+instance FromJSON Action
+instance ToJSON Action
 
 maybePurchase (PurchaseAction purchase) = Just purchase
 maybePurchase _ = Nothing
@@ -206,7 +247,10 @@ data Actions
   { actionsUsers :: [User]
   , actionsGroups :: [Group]
   , actionsArr :: [Action]
-  } deriving Show
+  } deriving (Generic, Show)
+
+instance FromJSON Actions
+instance ToJSON Actions
 
 splitTosToAccounts :: Actions -> [SplitTo] -> [Account]
 splitTosToAccounts actions
