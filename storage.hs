@@ -4,7 +4,7 @@ import JavaScript.Web.Storage
 import MoneySplit
 import Data.Aeson
 import Data.JSString
-import  Data.ByteString.Lazy.UTF8
+import Data.ByteString.Lazy.UTF8
 
 main :: IO ()
 main = do
