@@ -540,36 +540,44 @@ addItemizedSplitPurchase users groups = do
         <*> ( assumeValidDynamic $ ItemizedSplit <$> tips <*> splitItems )
   return $ tagValid purchase addEv
 
-preselectedUsersDropdown users selectedUser =
-  case selectedUser of
+preselectedItemDropdown
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m, Ord k)
+  => (k -> Text) -> k -> Dynamic t [k] -> Maybe k
+  -> m (Dropdown t k)
+preselectedItemDropdown showF noItemsVal items selectedItem = 
+  case selectedItem of
     Nothing
       -> dropdown
-         ""
+         noItemsVal
          (constDyn . M.fromList $ [])
          $ def
-    Just selectedUser
+    Just selectedItem
       -> dropdown
-         selectedUser
-         (M.fromList <$> (zip <$> users <*> fmap (map T.pack) users))
+         selectedItem
+         (M.fromList <$> (zip <$> items <*> fmap (map showF) items))
          $ def
 
-notSelectedUserDropdown
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Maybe User -> Dynamic t [User] -> Event t [User] -> m (Dynamic t User)
-notSelectedUserDropdown init users selectedUsers = mdo
+notSelectedItemDropdown
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m, Ord a)
+  => (a -> Text) -> a -> Maybe a -> Dynamic t [a] -> Event t [a]
+  -> m (Dynamic t a)
+notSelectedItemDropdown showF noItemsVal init items selectedItems = mdo
   elDyn <- widgetHold
-           (preselectedUsersDropdown users init)
-           (preselectedUsersDropdown users <$> notSelectedUserEv)
+           ( preselectedItemDropdown
+             showF noItemsVal items init )
+           ( preselectedItemDropdown
+             showF noItemsVal items <$> notSelectedUserEv
+           )
   let val = join $ value <$> elDyn
   let notSelectedUserEv
         = fmap (
-            \((_, users), selectedUsers) -> case users \\ selectedUsers of
+            \((_, items), selectedItems) -> case items \\ selectedItems of
                        [] -> Nothing
                        x:_ -> Just x
             )
-        . ffilter (\((val, _), selectedUsers) -> val `elem` selectedUsers)
-        . attach (current $ zipDyn val users)
-        $ selectedUsers
+        . ffilter (\((val, _), selectedItems) -> val `elem` selectedItems)
+        . attach (current $ zipDyn val items)
+        $ selectedItems
   return val
 
 twoUsersFromDifferentGroupsWidget
@@ -605,7 +613,8 @@ addPaymentTransaction0
 addPaymentTransaction0 firstUser secondUser users groups = mdo
   text "Debit user: "
   debitUser :: Dynamic t User
-    <- notSelectedUserDropdown
+    <- notSelectedItemDropdown
+       T.pack ""
        (Just firstUser)
        users
        ( fmap (\(groups, user) -> currentGroupOrUser groups user)
@@ -617,7 +626,8 @@ addPaymentTransaction0 firstUser secondUser users groups = mdo
   debitUserUpdateTailEv <- tailE . updated $ debitUser
   text "Credit user: "
   creditUser :: Dynamic t User
-    <- notSelectedUserDropdown
+    <- notSelectedItemDropdown
+       T.pack ""
        (Just secondUser)
        users
        ( fmap (\(groups, user) -> currentGroupOrUser groups user)
