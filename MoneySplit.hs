@@ -45,6 +45,7 @@ currentGroup groups user
   where
     groupsByUsersVal = groupsByUsers groups
 
+-- | Returns a current group of a `user` or a singleton list of the user itself
 currentGroupOrUser groups user = maybe [user] id $ currentGroup groups user
 
 accountUsers (UserAccount user  ) = [user]

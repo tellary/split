@@ -550,33 +550,33 @@ preselectedUsersDropdown users selectedUser =
     Just selectedUser
       -> dropdown
          selectedUser
-         (constDyn . M.fromList $ zip users (map T.pack users))
+         (M.fromList <$> (zip <$> users <*> fmap (map T.pack) users))
          $ def
 
 notSelectedUserDropdown
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => [User] -> Maybe User -> Event t [User] -> m (Dynamic t User)
-notSelectedUserDropdown users init selectedUsers = mdo
+  => Maybe User -> Dynamic t [User] -> Event t [User] -> m (Dynamic t User)
+notSelectedUserDropdown init users selectedUsers = mdo
   elDyn <- widgetHold
            (preselectedUsersDropdown users init)
            (preselectedUsersDropdown users <$> notSelectedUserEv)
   let val = join $ value <$> elDyn
-  let usersEv = attach (current val) selectedUsers
   let notSelectedUserEv
         = fmap (
-            \(_, selectedUsers) -> case users \\ selectedUsers of
+            \((_, users), selectedUsers) -> case users \\ selectedUsers of
                        [] -> Nothing
                        x:_ -> Just x
             )
-        . ffilter (\(val, selectedUsers) -> val `elem` selectedUsers)
-        $ usersEv
+        . ffilter (\((val, _), selectedUsers) -> val `elem` selectedUsers)
+        . attach (current $ zipDyn val users)
+        $ selectedUsers
   return val
 
 twoUsersFromDifferentGroupsWidget
   :: (DomBuilder t m, MonadHold t m, PostBuild t m)
-  => Dynamic t [User] -> Dynamic t [Group] -> (User -> User -> m (Event t a))
-  -> m (Event t a)
-twoUsersFromDifferentGroupsWidget users groups widget = unwrapEventWidget $ do
+  => Dynamic t [User] -> Dynamic t [Group] -> a -> (User -> User -> m a)
+  -> Dynamic t (m a)
+twoUsersFromDifferentGroupsWidget users groups errorVal widget = do
   users  <- users
   groups <- groups
   if length users < 2
@@ -584,7 +584,7 @@ twoUsersFromDifferentGroupsWidget users groups widget = unwrapEventWidget $ do
       let msg = "At least two users required, "
                 `T.append` "please add users in \"Manage users\""
       text msg
-      return never
+      return errorVal
     else
       let firstUser = head users
           maybeSecondUser = findUserNotInTheSameGroup users groups firstUser
@@ -594,26 +594,36 @@ twoUsersFromDifferentGroupsWidget users groups widget = unwrapEventWidget $ do
                        `T.append` "please add users in \"Manage users\" or "
                        `T.append` "remove groups in \"Manage groups\""
              text msg
-             return never
+             return errorVal
          )
          ( widget firstUser )
          maybeSecondUser
          
 addPaymentTransaction0
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => User -> User -> [User] -> [Group] -> m (Event t Action)
+  => User -> User -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
 addPaymentTransaction0 firstUser secondUser users groups = mdo
   text "Debit user: "
   debitUser :: Dynamic t User
     <- notSelectedUserDropdown
-       users (Just firstUser)
-       (currentGroupOrUser groups <$> updated creditUser)
+       (Just firstUser)
+       users
+       ( fmap (\(groups, user) -> currentGroupOrUser groups user)
+         . (attach . current) groups
+         . updated
+         $ creditUser
+       )
   el "br" blank
+  debitUserUpdateTailEv <- tailE . updated $ debitUser
   text "Credit user: "
   creditUser :: Dynamic t User
     <- notSelectedUserDropdown
-       users (Just secondUser)
-       (currentGroupOrUser groups <$> updated debitUser)
+       (Just secondUser)
+       users
+       ( fmap (\(groups, user) -> currentGroupOrUser groups user)
+         . (attach . current) groups
+         $ debitUserUpdateTailEv
+       )
   el "br" blank
   amount <- amountInput addEv
   addEv  <- button "Add payment"
@@ -629,11 +639,9 @@ addPaymentTransaction
   => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
 addPaymentTransaction users groups = do
   el "h3" $ text "Add payment"
-  twoUsersFromDifferentGroupsWidget users groups
-    $ \firstUser secondUser -> unwrapEventWidget $ do
-    users <- users
-    groups <- groups
-    return $ addPaymentTransaction0 firstUser secondUser users groups
+  unwrapEventWidget . twoUsersFromDifferentGroupsWidget users groups never
+    $ \firstUser secondUser ->
+        addPaymentTransaction0 firstUser secondUser users groups
 
 actionWidgetPayedFor
     ( PurchaseAction
