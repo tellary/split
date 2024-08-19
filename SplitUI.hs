@@ -16,7 +16,6 @@ import           Control.Monad.Fix      (MonadFix)
 import           Control.Monad.IO.Class (MonadIO)
 import           Data.List              (delete, find, (\\))
 import qualified Data.Map               as M
-import           Data.Maybe             (isNothing)
 import           Data.Text              (Text)
 import qualified Data.Text              as T
 import           Data.These             (These (These))
@@ -216,6 +215,9 @@ unwrapDynWidget :: (Adjustable t m, NotReady t m, MonadHold t m, PostBuild t m)
 unwrapDynWidget initVal dynWidget =
   join <$> (holdDyn (constDyn initVal) =<< dyn dynWidget)
 
+unwrapEventWidget
+  :: (Adjustable t m, NotReady t m, PostBuild t m, MonadHold t m)
+  => Dynamic t (m (Event t a)) -> m (Event t a)
 unwrapEventWidget evWidget = switchHold never =<< dyn evWidget
 
 dynToEvent
@@ -570,59 +572,68 @@ notSelectedUserDropdown users init selectedUsers = mdo
         $ usersEv
   return val
 
+twoUsersFromDifferentGroupsWidget
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m)
+  => Dynamic t [User] -> Dynamic t [Group] -> (User -> User -> m (Event t a))
+  -> m (Event t a)
+twoUsersFromDifferentGroupsWidget users groups widget = unwrapEventWidget $ do
+  users  <- users
+  groups <- groups
+  if length users < 2
+    then return $ do
+      let msg = "At least two users required, "
+                `T.append` "please add users in \"Manage users\""
+      text msg
+      return never
+    else
+      let firstUser = head users
+          maybeSecondUser = findUserNotInTheSameGroup users groups firstUser
+      in return $ maybe
+         ( do
+             let msg = "All users should not belong to the same group, "
+                       `T.append` "please add users in \"Manage users\" or "
+                       `T.append` "remove groups in \"Manage groups\""
+             text msg
+             return never
+         )
+         ( widget firstUser )
+         maybeSecondUser
+         
 addPaymentTransaction0
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => [User] -> [Group] -> m (Event t Action)
-addPaymentTransaction0 users groups =
-  if length users < 2
-  then do
-    let msg = "At least two users required, "
-              `T.append` "please add users in \"Manage users\""
-    text msg
-    return never
-  else
-    let maybeSecondUser = findUserNotInTheSameGroup users groups (head users)
-    in if isNothing maybeSecondUser
-       then do
-         let msg = "All users should not belong to the same group, "
-                   `T.append` "please add users in \"Manage users\" or "
-                   `T.append` "remove groups in \"Manage groups\""
-         text msg
-         return never
-       else mdo
-         text "Debit user: "
-         let firstUser = head users
-         debitUser :: Dynamic t User
-           <- notSelectedUserDropdown
-              users (Just firstUser)
-              (currentGroupOrUser groups <$> updated creditUser)
-         el "br" blank
-         text "Credit user: "
-
-         creditUser :: Dynamic t User
-           <- notSelectedUserDropdown
-              users maybeSecondUser
-              (currentGroupOrUser groups <$> updated debitUser)
-         el "br" blank
-         amount <- amountInput addEv
-         addEv  <- button "Add payment"
-         let action
-               = PaymentAction
-                 <$> assumeValidDynamic debitUser
-                 <*> assumeValidDynamic creditUser
-                 <*> amount
-         return $ tagValid action addEv
+  => User -> User -> [User] -> [Group] -> m (Event t Action)
+addPaymentTransaction0 firstUser secondUser users groups = mdo
+  text "Debit user: "
+  debitUser :: Dynamic t User
+    <- notSelectedUserDropdown
+       users (Just firstUser)
+       (currentGroupOrUser groups <$> updated creditUser)
+  el "br" blank
+  text "Credit user: "
+  creditUser :: Dynamic t User
+    <- notSelectedUserDropdown
+       users (Just secondUser)
+       (currentGroupOrUser groups <$> updated debitUser)
+  el "br" blank
+  amount <- amountInput addEv
+  addEv  <- button "Add payment"
+  let action
+        = PaymentAction
+          <$> assumeValidDynamic debitUser
+          <*> assumeValidDynamic creditUser
+          <*> amount
+  return $ tagValid action addEv
 
 addPaymentTransaction
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
 addPaymentTransaction users groups = do
   el "h3" $ text "Add payment"
-  switchHold never =<< (dyn $ do
+  twoUsersFromDifferentGroupsWidget users groups
+    $ \firstUser secondUser -> unwrapEventWidget $ do
     users <- users
     groups <- groups
-    return $ addPaymentTransaction0 users groups
-    )
+    return $ addPaymentTransaction0 firstUser secondUser users groups
 
 actionWidgetPayedFor
     ( PurchaseAction
