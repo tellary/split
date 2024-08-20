@@ -16,6 +16,7 @@ import           Control.Monad.Fix      (MonadFix)
 import           Control.Monad.IO.Class (MonadIO)
 import           Data.List              (delete, find, (\\))
 import qualified Data.Map               as M
+import           Data.Maybe             (isJust)
 import           Data.Text              (Text)
 import qualified Data.Text              as T
 import           Data.These             (These (These))
@@ -379,18 +380,64 @@ addSplitEquallyPurchase users = do
         <*> (SplitEqually . map SplitToUser <$> selectedUsers)
   return $ tagValid purchase addEv
 
+resettableDropdown
+  :: forall t m k b
+   . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m, Ord k)
+  => (k -> Text) -> Maybe k -> Dynamic t [k] -> Event t (Maybe b)
+  -> m (Dynamic t (Maybe k))
+resettableDropdown showF init items resetEv = do
+  let dd init = dropdown
+           init
+           ( fmap
+             ( M.fromList
+               . ((Nothing, "") :)
+               . map (\item -> (Just item, showF item))
+             )
+             $ items
+           )
+           $ def
+  elDyn <- widgetHold (dd init) (dd Nothing <$ ffilter isJust resetEv)
+  return . join $ value <$> elDyn
+
 addSplitItem
-  ::(DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Event t SplitItem)
-addSplitItem users = do
-  user   <- userInput "User" users
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => User -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t SplitItem)
+addSplitItem firstUser users groups = do
   rec
+    text "Payed for user: "
+    user  <- resettableDropdown
+             T.pack
+             (Just firstUser)
+             users
+             (updated group)
+    text " or group: "
+    group <- resettableDropdown
+             (T.pack . printUsersList)
+             Nothing
+             groups
+             (updated user)
+    splitTo <- holdDyn (SplitToUser firstUser)
+      . fmap
+        ( \case
+            (Just user, Nothing   ) -> SplitToUser  $ user
+            (Nothing  , Just group) -> SplitToGroup $ group
+            _ -> error "filtered out"
+        )
+      . ffilter
+        ( \case
+            (Just _, Nothing) -> True
+            (Nothing, Just _) -> True
+            _ -> False
+        )
+      . updated
+      $ zipDyn user group
+    el "br" blank
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
     addEv  <- button "Add split item"
   let splitItem
-        = SplitItem
-        <$> SplitToUser <$> user
+         =  SplitItem
+        <$> assumeValidDynamic splitTo
         <*> fmap (T.unpack) desc
         <*> amount
   return $ tagValid splitItem addEv
@@ -419,7 +466,9 @@ manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
   -> m (Dynamic t [SplitItem])
 manageSplitItems tips users groups = do
-  addSplitItemEv <- addSplitItem users
+  addSplitItemEv <- unwrapEventWidget
+                    . twoUsersFromDifferentGroupsWidget users groups never
+                    $ \firstUser _ -> addSplitItem firstUser users groups
   rec
     splitItems <-
       foldDyn ($) []
@@ -529,14 +578,16 @@ addItemizedSplitPurchase users groups = do
     let amount = fmap (sum . map splitItemAmount) $ splitItems
     dynText . fmap (T.pack . show) $ amount
     tips <- nestedWidget "Tips: " (addTips users)
-    splitItems <- nestedWidget "Split items: " $ manageSplitItems tips users groups
+    splitItems <- nestedWidget "Split items: "
+                  $ manageSplitItems tips users groups
     addEv <- button "Add purchase"
   let purchase
         = Purchase
         <$> user
         <*> fmap (T.unpack) desc
-        <*> (fmap (sum . map splitItemAmount) . assumeValidDynamic
-             $ splitItems)
+        <*> ( fmap (sum . map splitItemAmount) . assumeValidDynamic
+              $ splitItems
+            )
         <*> ( assumeValidDynamic $ ItemizedSplit <$> tips <*> splitItems )
   return $ tagValid purchase addEv
 
@@ -623,7 +674,6 @@ addPaymentTransaction0 firstUser secondUser users groups = mdo
          $ creditUser
        )
   el "br" blank
-  debitUserUpdateTailEv <- tailE . updated $ debitUser
   text "Credit user: "
   creditUser :: Dynamic t User
     <- notSelectedItemDropdown
@@ -632,7 +682,8 @@ addPaymentTransaction0 firstUser secondUser users groups = mdo
        users
        ( fmap (\(groups, user) -> currentGroupOrUser groups user)
          . (attach . current) groups
-         $ debitUserUpdateTailEv
+         . updated
+         $ debitUser
        )
   el "br" blank
   amount <- amountInput addEv

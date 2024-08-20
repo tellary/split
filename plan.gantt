@@ -82,17 +82,17 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Support tips in "itemized split" on UI] is 100% completed and starts on 2024-08-15 and ends on 2024-08-16
 [Store state in browser storage] is 100% completed and requires 2 days and starts on 2024-08-16
 today is 2024-08-19
-[Implement split by a user or by a group in "Split Items"] is 0% completed and starts on 2024-08-19
-[Write deployment script for the 'split' app] is 0% completed and starts on 2024-08-19
-[Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-19
-[Implement multiple workspaces] is 0% completed and requires 2 days and starts on 2024-08-19
-then [Move user management to a separate tab] is 0% completed
+[Implement split by a user or by a group in "Split Items"] is 50% completed and starts on 2024-08-19 and ends on 2024-08-20
+[Write deployment script for the 'split' app] is 0% completed and starts on 2024-08-20
+[Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-20
+[Update LinkedIn] is 0% completed and starts on 2024-08-20
+then [Edit split item purchases] is 0% completed and requires 2 days
 2024-08-17 is open
+2024-08-24 is open
 then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
-then [Buffer: UI ready] ends on 2024-08-23 and is 0% completed
-[UI completed] happens on 2024-08-23
+then [Buffer: UI ready] ends on 2024-08-26 and is 0% completed
+[UI completed] happens on 2024-08-26
 then [Advertise among friends] is 0% completed
-then [Update LinkedIn] is 0% completed
 then [Advertise in LinkedIn] is 0% completed
 
 -- Core logic --

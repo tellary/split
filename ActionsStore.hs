@@ -19,7 +19,7 @@ instance ActionsStore StubActionsStore where
     = return
       $ Actions
         ["Ilya", "Tasha", "Dima", "Alena", "Aigiza"]
-        []
+        [["Ilya", "Tasha"]]
         [ PurchaseAction
           ( Purchase "Ilya" "AirBnb" 442 SplitEquallyAll )
         ]
