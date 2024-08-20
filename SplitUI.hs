@@ -11,7 +11,7 @@
 module SplitUI where
 
 import           ActionsStore           (ActionsStore, getActions, putActions)
-import           Control.Monad          (forM, join)
+import           Control.Monad          (join)
 import           Control.Monad.Fix      (MonadFix)
 import           Control.Monad.IO.Class (MonadIO)
 import           Data.List              (delete, find, (\\))
@@ -46,28 +46,8 @@ resettableInput submitEvent validation = do
           = tagValid validInput submitOrEnterEv
   return (ev, validInput)
 
-dynList :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m)
-  => (a -> m ()) -> Dynamic t [a] -> m (Event t a)
-dynList showF itemsDyn = switchHold never =<< dyn listWidget
-  where
-    listWidget :: DomBuilder t m => Dynamic t (m (Event t a))
-    listWidget = ffor itemsDyn $ \items -> do
-      deleteEvents <- el "ul" . forM items $ \item -> do
-        el "li" $ do
-          showF $ item
-          deleteX item
-      return . leftmost $ deleteEvents
-
-deleteX item = do
-  text " ["
-  (deleteItemEl, _) <- elAttr' "a" ("class" =: "link") $ text "X"
-  text "]"
-  return (item <$ domEvent Click deleteItemEl)  
-
-tupleToThese (a, b) = These a b
-
-fanTuple :: Reflex t => Event t (a, b) -> (Event t a, Event t b)
-fanTuple = fanThese . fmap tupleToThese
+deleteX :: DomBuilder t m => a -> m (Event t a)
+deleteX = actionLink "X"
 
 manageUsers
   :: forall t m .
@@ -107,8 +87,8 @@ manageUsers users0 actions = do
 
 simpleListOneEvent
   :: (Eq item, Adjustable t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [item] -> (Dynamic t item -> m (Event t item))
-  -> m (Event t item)
+  => Dynamic t [item] -> (Dynamic t item -> m (Event t a))
+  -> m (Event t a)
 simpleListOneEvent items itemWidget
   = switchDyn <$> (simpleList items itemWidget >>=
                     \evs -> return $ (leftmost <$> evs))
@@ -142,7 +122,7 @@ userListItem actions user = el "li" $ do
     UserInActionErr user action -> do
       text . T.pack
         $ printf "Can't delete user '%s' referenced in action: " user
-      actionWidget action
+      actionText action
       return ()
     UserInGroupErr user group -> do
       text . T.pack
@@ -199,7 +179,7 @@ groupListItem actions group = do
         $ printf
           "Can't delete group '%s' referenced in action: "
           (printUsersList group)
-      actionWidget action
+      actionText action
       return ()
   return $ tagValid deleteGroupValid deleteGroupEv
 
@@ -731,7 +711,7 @@ addPaymentTransaction users groups = do
     $ \firstUser secondUser ->
         addPaymentTransaction0 firstUser secondUser users groups
 
-actionWidgetPayedFor
+actionTextPayedFor
     ( PurchaseAction
       ( Purchase
         { purchaseUser = purchaseUser
@@ -746,54 +726,78 @@ actionWidgetPayedFor
   text " for \""
   text . T.pack $ purchaseDesc
   text "\""
-actionWidgetPayedFor _
-  = error "actionWidgetPayedFor: only implemented for purchases so far"
+actionTextPayedFor _
+  = error "actionTextPayedFor: only implemented for purchases so far"
 
-actionWidget
+actionLink :: DomBuilder t m => Text -> a -> m (Event t a)
+actionLink label item = do
+  text " ["
+  (el, _) <- elAttr' "a" ("class" =: "link") $ text label
+  text "]"
+  return (item <$ domEvent Click el)  
+
+actionText
     action@( PurchaseAction
       ( Purchase { purchaseSplit = SplitEquallyAll } )
     ) = do
-  actionWidgetPayedFor action
+  actionTextPayedFor action
   text " split equally to all"
-actionWidget
+actionText
     action@( PurchaseAction
       ( Purchase { purchaseSplit = SplitEqually [splitTo] } )
     ) = do
-  actionWidgetPayedFor action
+  actionTextPayedFor action
   text " for "
   text . T.pack . printUsersList . splitToToUsers $ splitTo
-actionWidget
+actionText
     action@( PurchaseAction
       ( Purchase { purchaseSplit = SplitEqually splitTos } )
     ) = do
-  actionWidgetPayedFor action
+  actionTextPayedFor action
   text " split equally to "
   text . T.pack . printUsersList . splitTosUsers $ splitTos
-actionWidget
+actionText
     action@( PurchaseAction
       ( Purchase { purchaseSplit = ItemizedSplit Nothing splits } )
     ) = do
-  actionWidgetPayedFor action
+  actionTextPayedFor action
   text " split in "
   text . T.pack . show . length $ splits
   text " items"
-actionWidget
+  return ()
+actionText
     action@( PurchaseAction
       ( Purchase { purchaseSplit = ItemizedSplit (Just (Tips tips _)) splits } )
     ) = do
-  actionWidgetPayedFor action
+  actionTextPayedFor action
   text " split in "
   text . T.pack . show . length $ splits
   text " items with "
   text . T.pack . show $ tips
   text "% tips"
-actionWidget ( PaymentAction debitUser creditUser amount ) = do
+actionText ( PaymentAction debitUser creditUser amount ) = do
   text . T.pack $ debitUser
   text " payed "
   text . T.pack $ creditUser
   text " "
   text . T.pack . show $ amount
 
+data ActionState
+  = ActionState
+  { actionStateEdit   :: Bool
+  , actionStateAction :: Action
+  } deriving Eq
+
+actionWidget
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t ActionState -> m (Event t ([ActionState] -> [ActionState]))
+actionWidget stateDyn = unwrapEventWidget $ do
+  st@(ActionState _ action) <- stateDyn
+  return . el "li" $ do
+    actionText action
+    deleteEv <- deleteX st
+    return (delete <$> deleteEv)
+  
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => [Action] -> Dynamic t [User] -> Dynamic t [Group] -> m (Dynamic t Actions)
@@ -802,18 +806,18 @@ manageActions actionsArr0 users groups = do
   rec
     addActionEv <- addAction users groups
     actionsList <-
-      foldDyn ($) actionsArr0
+      foldDyn ($) (map (ActionState False) actionsArr0)
       ( mergeWith (.)
-        [ (:) <$> addActionEv
-        , delete <$> deleteActionEv
+        [ (:) . (ActionState False) <$> addActionEv
+        , actionEv
         ]
       )
     let actions = Actions
                   <$> users
                   <*> groups
-                  <*> actionsList
+                  <*> (map actionStateAction <$> actionsList)
     el "h3" $ text "Actions list"
-    deleteActionEv <- dynList actionWidget actionsList
+    actionEv <- el "ul" $ simpleListOneEvent actionsList actionWidget
   return actions
 
 app
