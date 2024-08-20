@@ -15,11 +15,11 @@ import           Control.Monad          (join)
 import           Control.Monad.Fix      (MonadFix)
 import           Control.Monad.IO.Class (MonadIO)
 import           Data.List              (delete, find, (\\))
+import           Data.Map               (Map)
 import qualified Data.Map               as M
 import           Data.Maybe             (isJust)
 import           Data.Text              (Text)
 import qualified Data.Text              as T
-import           Data.These             (These (These))
 import           MoneySplit             hiding (addTips)
 import           Reflex.Dom             hiding (Group)
 import           SplitReport
@@ -92,6 +92,14 @@ simpleListOneEvent
 simpleListOneEvent items itemWidget
   = switchDyn <$> (simpleList items itemWidget >>=
                     \evs -> return $ (leftmost <$> evs))
+
+listWithKeyOneEvent
+  :: (Ord k, Eq item, Adjustable t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Dynamic t (Map k item) -> (k -> Dynamic t item -> m (Event t a))
+  -> m (Event t a)
+listWithKeyOneEvent items itemWidget
+  = switchDyn <$> (listWithKey items itemWidget >>=
+                    \evs -> return $ (leftmost . M.elems <$> evs))
 
 data UserDeletionErr
   = UserInActionErr User Action
@@ -790,14 +798,32 @@ data ActionState
 
 actionWidget
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t ActionState -> m (Event t ([ActionState] -> [ActionState]))
-actionWidget stateDyn = unwrapEventWidget $ do
-  st@(ActionState _ action) <- stateDyn
-  return . el "li" $ do
+  => Dynamic t [User] -> Dynamic t [Group] -> Int -> Dynamic t ActionState
+  -> m (Event t (Map Int ActionState -> Map Int ActionState))
+actionWidget users groups ix stateDyn = unwrapEventWidget $ stateDyn >>= \case
+  st@(ActionState False action) -> return . el "li" $ do
+    actionText action
+    editEv   <- actionLink "E" st
+    deleteEv <- deleteX st
+    return . leftmost $
+      [ M.delete ix <$ deleteEv
+      , M.update (\st -> Just st { actionStateEdit = True }) ix <$ editEv
+      ]
+  st@(ActionState True action) -> return . el "li" $ do
     actionText action
     deleteEv <- deleteX st
-    return (delete <$> deleteEv)
-  
+    el "br" blank
+    actionEv <- addAction users groups 
+    return . leftmost $
+      [ M.delete ix <$ deleteEv
+      , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
+        <$> actionEv
+      ]
+
+addNew el m = case M.lookupMax m of
+  Just (ix, _) -> M.insert (ix + 1) el m
+  Nothing -> M.insert 0 el m
+
 manageActions
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => [Action] -> Dynamic t [User] -> Dynamic t [Group] -> m (Dynamic t Actions)
@@ -805,23 +831,25 @@ manageActions actionsArr0 users groups = do
   el "h2" $ text "Manage actions"
   rec
     addActionEv <- addAction users groups
-    actionsList <-
-      foldDyn ($) (map (ActionState False) actionsArr0)
+    actionsMap :: Dynamic t (Map Int ActionState) <-
+      foldDyn ($)
+      ( M.fromAscList . zip [0..] . map (ActionState False) $ actionsArr0 )
       ( mergeWith (.)
-        [ (:) . (ActionState False) <$> addActionEv
+        [ addNew . (ActionState False) <$> addActionEv
         , actionEv
         ]
       )
     let actions = Actions
                   <$> users
                   <*> groups
-                  <*> (map actionStateAction <$> actionsList)
+                  <*> (map actionStateAction . M.elems <$> actionsMap)
     el "h3" $ text "Actions list"
-    actionEv <- el "ul" $ simpleListOneEvent actionsList actionWidget
+    actionEv <- el "ul" $ listWithKeyOneEvent actionsMap (actionWidget users groups)
   return actions
 
 app
-  :: (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m, ActionsStore s, MonadIO m)
+  :: ( Reflex t, DomBuilder t m, MonadHold t m
+     , PostBuild t m, MonadFix m, ActionsStore s, MonadIO m )
   => s -> m ()
 app store = do
   actions0 <- getActions store
