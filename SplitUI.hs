@@ -176,10 +176,37 @@ addGroup users groups = mdo
     =<< dropValidDynamic (Left "") 2 newGroupUsersValid
   return addGroupEv
 
+data GroupDeletionErr = GroupInActionErr Group Action deriving Show
+
+groupListItem actions group = do
+  dynText $ T.pack . printUsersList <$> group
+  deleteGroupEv <- switchHold never =<< (dyn $ deleteX <$> group)
+  deleteGroupValid <- unwrapValidDynamicWidget [] $ do
+    actionsArrVal <- actionsArr    <$> actions
+    groupVal      <- group
+    return . fromEvent Nothing (Just <$> deleteGroupEv)
+      $ \case
+          Nothing -> Right groupVal
+          Just group ->
+            case find (isGroupAction group) actionsArrVal of
+              Just groupAction
+                -> Left $ GroupInActionErr group groupAction
+              Nothing -> Right group
+  text " "
+  errorWidget never deleteGroupValid (return ()) $ \case
+    GroupInActionErr group action -> do
+      text . T.pack
+        $ printf
+          "Can't delete group '%s' referenced in action: "
+          (printUsersList group)
+      actionWidget action
+      return ()
+  return $ tagValid deleteGroupValid deleteGroupEv
+
 manageGroups
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => [Group] -> Dynamic t [User] -> m (Dynamic t [[User]])
-manageGroups groups0 users = do
+  => [Group] -> Dynamic t Actions -> Dynamic t [User] -> m (Dynamic t [[User]])
+manageGroups groups0 actions users = do
   el "h2" $ text "Manage user groups"
   el "h3" $ text "Select users for the group"
   rec
@@ -197,7 +224,7 @@ manageGroups groups0 users = do
       )
     el "h3" $ text "User groups"
     deleteGroupEv <-
-      dynList (text . T.pack . printUsersList) userGroups
+      el "ul" $ simpleListOneEvent userGroups (groupListItem actions)
   return userGroups
 
 validInput
@@ -796,7 +823,7 @@ app store = do
   actions0 <- getActions store
   rec 
     users <- manageUsers (actionsUsers actions0) actions
-    groups <- manageGroups (actionsGroups actions0) users
+    groups <- manageGroups (actionsGroups actions0) actions users
     actions <- manageActions (actionsArr actions0) users groups
   dyn (actions >>= (return . putActions store))
   let nullified = (nullifyBalances . actionsToTransactions) <$> actions

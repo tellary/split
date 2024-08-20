@@ -243,6 +243,17 @@ maybePurchase _ = Nothing
 isUserAction user (PaymentAction u1 u2 _) = user == u1 || user == u2
 isUserAction user (PurchaseAction p) = isUserPurchase user p
 
+isGroupSplitItem group (SplitItem { splitItemTo = SplitToGroup splitGroup })
+  = group == splitGroup
+isGroupSplitItem _ _ = False
+
+isGroupPurchase group (Purchase { purchaseSplit = ItemizedSplit _ items })
+  = any (isGroupSplitItem group) items
+isGroupPurchase _ _ = False
+
+isGroupAction group (PurchaseAction p) = isGroupPurchase group p
+isGroupAction _ _ = False
+
 data Actions
   = Actions
   { actionsUsers :: [User]
