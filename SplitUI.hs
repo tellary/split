@@ -896,7 +896,7 @@ actionWidget users groups ix stateDyn = unwrapEventWidget $ stateDyn >>= \case
     cancelEditEv <- actionLink "cancel edit" st
     deleteEv <- actionLink "delete" st
     el "br" blank
-    actionEv <- actionForm "Update" (Just action) users groups 
+    actionEv <- nestedWidget "" $ actionForm "Update" (Just action) users groups 
     return . leftmost $
       [ M.delete ix <$ deleteEv
       , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
