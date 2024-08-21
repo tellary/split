@@ -247,10 +247,10 @@ data ActionType
   | PurchaseItemizedSplitActionType
   | PaymentTransactionActionType deriving (Eq, Ord, Show)
 
-addAction
+actionForm
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
-addAction users groups = do
+  => Text -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
+actionForm actionLabel users groups = do
   text "Choose action type: "
   dropdownEl <- dropdown PurchaseSplitEquallyAllActionType
     ( constDyn
@@ -267,13 +267,16 @@ addAction users groups = do
   switchHold never =<< do
     dyn . ffor actionType $ \case
       PurchaseSplitEquallyAllActionType
-        -> fmap (fmap PurchaseAction) $ addSplitAllPurchase users
+        -> fmap (fmap PurchaseAction)
+           $ splitAllPurchaseForm actionLabel users
       PurchaseSplitEquallyActionType
-        -> fmap (fmap PurchaseAction) $ addSplitEquallyPurchase users
+        -> fmap (fmap PurchaseAction)
+           $ splitEquallyPurchaseForm actionLabel users
       PurchaseItemizedSplitActionType
-        -> fmap (fmap PurchaseAction) $ addItemizedSplitPurchase users groups
+        -> fmap (fmap PurchaseAction)
+           $ itemizedSplitPurchaseForm actionLabel users groups
       PaymentTransactionActionType
-        -> addPaymentTransaction users groups
+        -> paymentTransactionForm actionLabel users groups
 
 userInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -328,16 +331,16 @@ amountInput addEv = do
   el "br" blank
   return amount
 
-addSplitAllPurchase
+splitAllPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Event t Purchase)
-addSplitAllPurchase users = do
-  el "h3" $ text "Add \"split all\" purchase"
+  => Text -> Dynamic t [User] -> m (Event t Purchase)
+splitAllPurchaseForm actionLabel users = do
+  el "h3" . text $ actionLabel `T.append` " \"split all\" purchase"
   user <- userInput "User" users
   rec
     desc   <- descriptionInput addEv
     amount <- amountInput addEv
-    addEv  <- button "Add purchase"
+    addEv  <- button $ actionLabel `T.append` " purchase"
   let purchase
         = Purchase
         <$> user
@@ -376,17 +379,17 @@ selectUsers idPrefix users = do
   return . fmap (map snd . filter fst)
     $ (zip <$> selectedCbs <*> users)
 
-addSplitEquallyPurchase
+splitEquallyPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Event t Purchase)
-addSplitEquallyPurchase users = do
-  el "h3" $ text "Add \"split equally\" purchase"
+  => Text -> Dynamic t [User] -> m (Event t Purchase)
+splitEquallyPurchaseForm actionLabel users = do
+  el "h3" . text $ actionLabel `T.append` " \"split equally\" purchase"
   user <- userInput "User" users
   rec
     desc          <- descriptionInput addEv
     amount        <- amountInput addEv
     selectedUsers <- assumeValidDynamic <$> selectUsers "split" users
-    addEv         <- button "Add purchase"
+    addEv         <- button $ actionLabel `T.append` " purchase"
   let purchase
         = Purchase
         <$> user
@@ -581,11 +584,11 @@ addTips users = do
           $ tips
   unwrapDynWidget Nothing tipsMaybeDynDyn
 
-addItemizedSplitPurchase
+itemizedSplitPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Purchase)
-addItemizedSplitPurchase users groups = do
-  el "h3" $ text "Add \"itemized split\" purchase"
+  => Text -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Purchase)
+itemizedSplitPurchaseForm actionLabel users groups = do
+  el "h3" . text $ actionLabel `T.append` " \"itemized split\" purchase"
   user <- userInput "User" users
   rec
     desc       <- descriptionInput addEv
@@ -595,7 +598,7 @@ addItemizedSplitPurchase users groups = do
     tips <- nestedWidget "Tips: " (addTips users)
     splitItems <- nestedWidget "Split items: "
                   $ manageSplitItems tips users groups
-    addEv <- button "Add purchase"
+    addEv <- button $ actionLabel `T.append` " purchase"
   let purchase
         = Purchase
         <$> user
@@ -673,10 +676,11 @@ twoUsersFromDifferentGroupsWidget users groups errorVal widget = do
          ( widget firstUser )
          maybeSecondUser
          
-addPaymentTransaction0
+paymentTransactionForm0
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => User -> User -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
-addPaymentTransaction0 firstUser secondUser users groups = mdo
+  => Text -> User -> User -> Dynamic t [User] -> Dynamic t [Group]
+  -> m (Event t Action)
+paymentTransactionForm0 actionLabel firstUser secondUser users groups = mdo
   text "Debit user: "
   debitUser :: Dynamic t User
     <- notSelectedItemDropdown
@@ -702,7 +706,7 @@ addPaymentTransaction0 firstUser secondUser users groups = mdo
        )
   el "br" blank
   amount <- amountInput addEv
-  addEv  <- button "Add payment"
+  addEv  <- button $ actionLabel `T.append` " payment"
   let action
         = PaymentAction
           <$> assumeValidDynamic debitUser
@@ -710,14 +714,14 @@ addPaymentTransaction0 firstUser secondUser users groups = mdo
           <*> amount
   return $ tagValid action addEv
 
-addPaymentTransaction
+paymentTransactionForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
-addPaymentTransaction users groups = do
-  el "h3" $ text "Add payment"
+  => Text -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
+paymentTransactionForm actionLabel users groups = do
+  el "h3" . text $ actionLabel `T.append` " payment"
   unwrapEventWidget . twoUsersFromDifferentGroupsWidget users groups never
     $ \firstUser secondUser ->
-        addPaymentTransaction0 firstUser secondUser users groups
+        paymentTransactionForm0 actionLabel firstUser secondUser users groups
 
 actionTextPayedFor
     ( PurchaseAction
@@ -813,7 +817,7 @@ actionWidget users groups ix stateDyn = unwrapEventWidget $ stateDyn >>= \case
     actionText action
     deleteEv <- deleteX st
     el "br" blank
-    actionEv <- addAction users groups 
+    actionEv <- actionForm "Update" users groups 
     return . leftmost $
       [ M.delete ix <$ deleteEv
       , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
@@ -830,7 +834,7 @@ manageActions
 manageActions actionsArr0 users groups = do
   el "h2" $ text "Manage actions"
   rec
-    addActionEv <- addAction users groups
+    addActionEv <- actionForm "Add" users groups
     actionsMap :: Dynamic t (Map Int ActionState) <-
       foldDyn ($)
       ( M.fromAscList . zip [0..] . map (ActionState False) $ actionsArr0 )
