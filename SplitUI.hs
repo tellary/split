@@ -46,9 +46,6 @@ resettableInput submitEvent validation = do
           = tagValid validInput submitOrEnterEv
   return (ev, validInput)
 
-deleteX :: DomBuilder t m => a -> m (Event t a)
-deleteX = actionLink "X"
-
 manageUsers
   :: forall t m .
      (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -110,7 +107,7 @@ userListItem :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m)
   => Dynamic t Actions -> Dynamic t User -> m (Event t User)
 userListItem actions user = el "li" $ do
   dynText (T.pack <$> user)
-  deleteUserEv <- switchHold never =<< (dyn $ deleteX <$> user)
+  deleteUserEv <- switchHold never =<< (dyn $ actionLink "delete" <$> user)
   deleteUserValid <- unwrapValidDynamicWidget "" $ do
     actionsArrVal <- actionsArr    <$> actions
     groupsVal     <- actionsGroups <$> actions
@@ -168,7 +165,7 @@ data GroupDeletionErr = GroupInActionErr Group Action deriving Show
 
 groupListItem actions group = do
   dynText $ T.pack . printUsersList <$> group
-  deleteGroupEv <- switchHold never =<< (dyn $ deleteX <$> group)
+  deleteGroupEv <- switchHold never =<< (dyn $ actionLink "delete" <$> group)
   deleteGroupValid <- unwrapValidDynamicWidget [] $ do
     actionsArrVal <- actionsArr    <$> actions
     groupVal      <- group
@@ -470,7 +467,7 @@ splitItemWidget onView@(SplitItemOnView deletable item) = el "li" $ do
   text " -- "
   text . T.pack . show . splitItemAmount $ item
   ev <- if deletable
-        then deleteX onView
+        then actionLink "delete" onView
         else return never
   el "br" $ blank
   return ev
@@ -807,21 +804,23 @@ actionWidget
 actionWidget users groups ix stateDyn = unwrapEventWidget $ stateDyn >>= \case
   st@(ActionState False action) -> return . el "li" $ do
     actionText action
-    editEv   <- actionLink "E" st
-    deleteEv <- deleteX st
+    editEv   <- actionLink "edit" st
+    deleteEv <- actionLink "delete" st
     return . leftmost $
       [ M.delete ix <$ deleteEv
       , M.update (\st -> Just st { actionStateEdit = True }) ix <$ editEv
       ]
   st@(ActionState True action) -> return . el "li" $ do
     actionText action
-    deleteEv <- deleteX st
+    cancelEditEv <- actionLink "cancel edit" st
+    deleteEv <- actionLink "delete" st
     el "br" blank
     actionEv <- actionForm "Update" users groups 
     return . leftmost $
       [ M.delete ix <$ deleteEv
       , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
         <$> actionEv
+      , M.update (\st -> Just st { actionStateEdit = False }) ix <$ cancelEditEv
       ]
 
 addNew el m = case M.lookupMax m of
