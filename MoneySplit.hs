@@ -150,6 +150,13 @@ data Purchase
 instance FromJSON Purchase
 instance ToJSON Purchase
 
+purchaseSplitEquallyUsers (Purchase { purchaseSplit = SplitEqually splitTos })
+  = Just . splitTosUsers $ splitTos
+purchaseSplitEquallyUsers _ = Nothing
+
+actionSplitEquallyUsers (PurchaseAction p) = purchaseSplitEquallyUsers p
+actionSplitEquallyUsers _ = Nothing
+
 data SplitTo = SplitToUser User | SplitToGroup Group
   deriving (Generic, Eq, Ord, Show)
 
@@ -185,10 +192,18 @@ data SplitTips
 instance FromJSON SplitTips
 instance ToJSON SplitTips
 
-data Tips = Tips Int SplitTips deriving (Generic, Show, Eq, Ord)
+data Tips
+  = Tips
+  { tipsPercentage :: Int
+  , tipsSplit      :: SplitTips
+  } deriving (Generic, Show, Eq, Ord)
 
 instance FromJSON Tips
 instance ToJSON Tips
+
+tipsSplitEquallyUsers (Tips { tipsSplit = SplitTipsEqually splitTos } )
+  = Just . splitTosUsers $ splitTos
+tipsSplitEquallyUsers _ = Nothing
 
 data Split
   = SplitEqually [SplitTo]
@@ -237,8 +252,19 @@ data Action
 instance FromJSON Action
 instance ToJSON Action
 
-maybePurchase (PurchaseAction purchase) = Just purchase
-maybePurchase _ = Nothing
+actionDesc (PurchaseAction p) = Just (purchaseDesc p)
+actionDesc (PaymentAction _ _ _) = Nothing
+
+actionDebitUser (PurchaseAction p) = purchaseUser p
+actionDebitUser (PaymentAction u _ _) = u
+
+actionAmount (PurchaseAction p) = purchaseAmount p
+actionAmount (PaymentAction _ _ a) = a
+
+actionTips (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit tips _ }))
+  = tips
+actionTips _
+  = Nothing
 
 isUserAction user (PaymentAction u1 u2 _) = user == u1 || user == u2
 isUserAction user (PurchaseAction p) = isUserPurchase user p

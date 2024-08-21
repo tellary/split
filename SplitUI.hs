@@ -142,7 +142,7 @@ addGroup users groups = mdo
   let usersNotInGroups
         = filter (not . \user -> any (\group -> user `elem` group) groups)
           $ users
-  newGroupUsers <- selectUsers "group" $ constDyn usersNotInGroups
+  newGroupUsers <- selectUsers "group" Nothing $ constDyn usersNotInGroups
   let newGroupUsersValid :: ValidDynamic t Text [User]
         = fromDynamic newGroupUsers
           $ \case
@@ -163,7 +163,7 @@ addGroup users groups = mdo
 
 data GroupDeletionErr = GroupInActionErr Group Action deriving Show
 
-groupListItem actions group = do
+groupListItem actions group = el "li" $ do
   dynText $ T.pack . printUsersList <$> group
   deleteGroupEv <- switchHold never =<< (dyn $ actionLink "delete" <$> group)
   deleteGroupValid <- unwrapValidDynamicWidget [] $ do
@@ -214,10 +214,14 @@ manageGroups groups0 actions users = do
 
 validInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Event t b -> (Text -> Either Text a)
+  => (a -> Text) -> Maybe a -> Event t b -> (Text -> Either Text a)
   -> m (ValidDynamic t Text a)
-validInput submitEvent validation = do
-  inputValue <- value <$> inputElement def
+validInput showF currentVal submitEvent validation = do
+  inputValue <- value
+    <$> ( inputElement
+          $ def
+          & inputElementConfig_initialValue .~ (maybe "" showF currentVal)
+        )
   let inputValueValid = fromDynamic inputValue validation
   text " "
   dynText =<< errorDyn "" submitEvent inputValueValid
@@ -244,41 +248,66 @@ data ActionType
   | PurchaseItemizedSplitActionType
   | PaymentTransactionActionType deriving (Eq, Ord, Show)
 
+actionToType (PurchaseAction (Purchase { purchaseSplit = SplitEquallyAll   }))
+  = PurchaseSplitEquallyAllActionType
+actionToType (PurchaseAction (Purchase { purchaseSplit = SplitEqually  _   }))
+  = PurchaseSplitEquallyActionType
+actionToType (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit _ _ }))
+  = PurchaseItemizedSplitActionType
+actionToType (PaymentAction _ _ _)
+  = PaymentTransactionActionType
+
 actionForm
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
-actionForm actionLabel users groups = do
+  => Text -> Maybe Action
+  -> Dynamic t [User] -> Dynamic t [Group]
+  -> m (Event t Action)
+actionForm actionLabel currentAction users groups = do
   text "Choose action type: "
-  dropdownEl <- dropdown PurchaseSplitEquallyAllActionType
-    ( constDyn
-     (    PurchaseSplitEquallyAllActionType
-          =: "Purchase Split Equally All"
-       <> PurchaseSplitEquallyActionType
-          =: "Purchase Split Equally"
-       <> PurchaseItemizedSplitActionType
-          =: "Purchase Itemized Split"
-       <> PaymentTransactionActionType
-          =: "Payment"
-     )) def
+  dropdownEl
+    <- dropdown
+       (maybe PurchaseSplitEquallyAllActionType actionToType currentAction)
+       ( constDyn
+         (    PurchaseSplitEquallyAllActionType
+              =: "Purchase Split Equally All"
+           <> PurchaseSplitEquallyActionType
+              =: "Purchase Split Equally"
+           <> PurchaseItemizedSplitActionType
+              =: "Purchase Itemized Split"
+           <> PaymentTransactionActionType
+              =: "Payment"
+         )
+       )
+       def
   let actionType = value dropdownEl
-  switchHold never =<< do
-    dyn . ffor actionType $ \case
+  unwrapEventWidget $ do
+    actionType <- actionType
+    return case actionType of
       PurchaseSplitEquallyAllActionType
         -> fmap (fmap PurchaseAction)
-           $ splitAllPurchaseForm actionLabel users
+           $ splitAllPurchaseForm
+             actionLabel
+             currentAction
+             users
       PurchaseSplitEquallyActionType
         -> fmap (fmap PurchaseAction)
-           $ splitEquallyPurchaseForm actionLabel users
+           $ splitEquallyPurchaseForm
+             actionLabel
+             currentAction
+             users
       PurchaseItemizedSplitActionType
         -> fmap (fmap PurchaseAction)
-           $ itemizedSplitPurchaseForm actionLabel users groups
+           $ itemizedSplitPurchaseForm
+             actionLabel
+             currentAction
+             users groups
       PaymentTransactionActionType
-        -> paymentTransactionForm actionLabel users groups
+        -> paymentTransactionForm actionLabel currentAction users groups
 
 userInput
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> m (ValidDynamic t Text User)
-userInput label users = do
+  => Text -> Maybe User -> Dynamic t [User] -> m (ValidDynamic t Text User)
+userInput label currentUser users = do
   text $ label `T.append` ": "
   user :: ValidDynamic t Text User <- fromDynamicEither <$> unwrapDynWidget
     ( Left "" )
@@ -291,7 +320,7 @@ userInput label users = do
             return . constDyn . Left $ msg
           else do
             el <- dropdown
-                  (head users)
+                  (maybe (head users) id currentUser)
                   (constDyn . M.fromList $ zip users (map T.pack users))
                   def
             return $ Right <$> value el
@@ -300,10 +329,10 @@ userInput label users = do
   return user
 
 descriptionInput :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Event t a -> m (ValidDynamic t Text Text)
-descriptionInput addEv = do
+  => Maybe Text -> Event t a -> m (ValidDynamic t Text Text)
+descriptionInput currentVal addEv = do
   text "Description: "
-  desc <- validInput addEv $ \txt ->
+  desc <- validInput id currentVal addEv $ \txt ->
     let txt' = T.strip txt
     in if T.null txt'
        then Left "No description provided"
@@ -312,10 +341,10 @@ descriptionInput addEv = do
   return desc
 
 amountInput :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Event t a -> m (ValidDynamic t Text Amount)
-amountInput addEv = do
+  => Maybe Amount -> Event t a -> m (ValidDynamic t Text Amount)
+amountInput currentAmount addEv = do
   text "Amount: "
-  amount <- validInput addEv $ \txt ->
+  amount <- validInput (T.pack . show) currentAmount addEv $ \txt ->
     maybe
     (Left $ "Failed to read amount: " `T.append` txt) id
     $ do
@@ -330,13 +359,17 @@ amountInput addEv = do
 
 splitAllPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> m (Event t Purchase)
-splitAllPurchaseForm actionLabel users = do
+  => Text -> Maybe Action
+  -> Dynamic t [User]
+  -> m (Event t Purchase)
+splitAllPurchaseForm actionLabel currentAction users = do
   el "h3" . text $ actionLabel `T.append` " \"split all\" purchase"
-  user <- userInput "User" users
+  user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
-    desc   <- descriptionInput addEv
-    amount <- amountInput addEv
+    desc   <- descriptionInput
+              (T.pack <$> (actionDesc =<< currentAction))
+              addEv
+    amount <- amountInput (actionAmount <$> currentAction) addEv
     addEv  <- button $ actionLabel `T.append` " purchase"
   let purchase
         = Purchase
@@ -348,12 +381,13 @@ splitAllPurchaseForm actionLabel users = do
 
 selectUserItem
   :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
-  => String -> Dynamic t User -> m (Dynamic t Bool)
-selectUserItem idPrefix user = unwrapDynWidget False $ do
-  user <- user
+  => String -> Dynamic t (Bool, User) -> m (Dynamic t Bool)
+selectUserItem idPrefix preselectedUser = unwrapDynWidget False $ do
+  (preselected, user) <- preselectedUser
   let widget :: m (Dynamic t Bool) = do
         cb <- inputElement
               $ def
+              & inputElementConfig_initialChecked .~ preselected
               & inputElementConfig_elementConfig
               . elementConfig_initialAttributes
               .~ (  "type" =: "checkbox"
@@ -368,24 +402,36 @@ selectUserItem idPrefix user = unwrapDynWidget False $ do
 
 selectUsers
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => String -> Dynamic t [User] -> m (Dynamic t [User])
-selectUsers idPrefix users = do
+  => String -> Maybe [User] -> Dynamic t [User] -> m (Dynamic t [User])
+selectUsers idPrefix currentUsers users = do
+  let preselectedUsers
+        = fmap
+          ( map (\user -> (user `elem` (maybe [] id currentUsers), user)) )
+          users
   selectedCbs :: Dynamic t [Bool]
     <- fmap (join . fmap distributeListOverDyn)
-       $ simpleList users (selectUserItem idPrefix)
+       $ simpleList preselectedUsers (selectUserItem idPrefix)
   return . fmap (map snd . filter fst)
     $ (zip <$> selectedCbs <*> users)
 
 splitEquallyPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> m (Event t Purchase)
-splitEquallyPurchaseForm actionLabel users = do
+  => Text -> Maybe Action
+  -> Dynamic t [User]
+  -> m (Event t Purchase)
+splitEquallyPurchaseForm actionLabel currentAction users = do
   el "h3" . text $ actionLabel `T.append` " \"split equally\" purchase"
-  user <- userInput "User" users
+  user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
-    desc          <- descriptionInput addEv
-    amount        <- amountInput addEv
-    selectedUsers <- assumeValidDynamic <$> selectUsers "split" users
+    desc          <- descriptionInput
+                     (T.pack <$> (actionDesc =<< currentAction))
+                     addEv
+    amount        <- amountInput (actionAmount <$> currentAction) addEv
+    selectedUsers <- assumeValidDynamic
+                     <$> selectUsers
+                         "split"
+                         (actionSplitEquallyUsers =<< currentAction)
+                         users
     addEv         <- button $ actionLabel `T.append` " purchase"
   let purchase
         = Purchase
@@ -447,8 +493,8 @@ addSplitItem firstUser users groups = do
       . updated
       $ zipDyn user group
     el "br" blank
-    desc   <- descriptionInput addEv
-    amount <- amountInput addEv
+    desc   <- descriptionInput Nothing addEv
+    amount <- amountInput Nothing addEv
     addEv  <- button "Add split item"
   let splitItem
          =  SplitItem
@@ -482,7 +528,8 @@ manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   -> m (Dynamic t [SplitItem])
 manageSplitItems tips users groups = do
   addSplitItemEv <- unwrapEventWidget
-                    . twoUsersFromDifferentGroupsWidget users groups never
+                    . twoUsersFromDifferentGroupsWidget
+                      users groups Nothing never
                     $ \firstUser _ -> addSplitItem firstUser users groups
   rec
     splitItems <-
@@ -510,7 +557,7 @@ manageSplitItems tips users groups = do
         $ \itemDyn -> unwrapEventWidget $ do
             item <- itemDyn
             return $ splitItemWidget item
-  return . fmap (map splitItemOnView) $ splitItems
+  return . fmap (map splitItemOnView) $ splitItemsWithTips
       
 nestedWidget :: DomBuilder t m => Text -> m a -> m a
 nestedWidget label widget = do
@@ -531,6 +578,13 @@ data SplitTipsType
   | RelativeSplitTipsType
   deriving (Eq, Ord)
 
+tipsSplitType (SplitTipsEqually  _) = SplitTipsEquallyType
+tipsSplitType (SplitTipsEquallyAll) = SplitTipsEquallyAllType
+tipsSplitType (ItemizedSplitTips _)
+  = error "ItemizedSplitTipsType not supported yet"
+  -- ItemizedSplitTipsType
+tipsSplitType (RelativeSplitTips  ) = RelativeSplitTipsType
+
 manageSplitTipsItems
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Dynamic t [User]
@@ -540,59 +594,76 @@ manageSplitTipsItems = do
 
 addTips
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> m (Dynamic t (Maybe Tips))
-addTips users = do
+  => Maybe Tips -> Dynamic t [User] -> m (Dynamic t (Maybe Tips))
+addTips currentTips users = do
   text "Tip percentage: "
-  tips <- value
-          <$> (dropdown
-              Nothing
-              (constDyn (Just 10 =: "10%" <> Just 20 =: "20%"))
-              def)
+  tipsPercentageMaybe <- value
+                         <$> ( dropdown
+                               (tipsPercentage <$> currentTips)
+                               (constDyn (Just 10 =: "10%" <> Just 20 =: "20%"))
+                               def
+                             )
   el "br" $ blank
   let tipsMaybeDynDyn :: Dynamic t (m (Dynamic t (Maybe Tips))) = do
-        tips <- tips
+        tipsPercentageMaybe <- tipsPercentageMaybe
         return $ maybe
           ( return . return $ Nothing )
           ( \tips -> do
               text "How to split tips? "
               splitType <- value <$> dropdown
-                             RelativeSplitTipsType
-                             ( constDyn
-                             (  SplitTipsEquallyType    =: "Split equally"
-                             <> SplitTipsEquallyAllType =: "Split equally all"
-                             -- <> ItemizedSplitTipsType   =: "Itemized split"
-                             <> RelativeSplitTipsType   =: "Split relatively"
-                             )
-                           )
-                           def
+                ( maybe
+                  RelativeSplitTipsType
+                  ( tipsSplitType . tipsSplit )
+                  currentTips
+                )
+                ( constDyn
+                  (    SplitTipsEquallyType    =: "Split equally"
+                    <> SplitTipsEquallyAllType =: "Split equally all"
+                    -- <> ItemizedSplitTipsType  =: "Itemized split"
+                    <> RelativeSplitTipsType   =: "Split relatively"
+                  )
+                )
+                def
               el "br" $ blank
               unwrapDynWidget Nothing $ do
                   splitType <- splitType
                   return case splitType of
                     SplitTipsEquallyType -> do
-                      users <- selectUsers "tipsUsers" users
+                      users <- selectUsers
+                               "tipsUsers"
+                               (tipsSplitEquallyUsers =<< currentTips)
+                               users
                       let splitTos = fmap (map SplitToUser) users
-                      return (Just <$> (Tips <$> constDyn tips <*> (SplitTipsEqually <$> splitTos)))
+                      return (Just
+                              <$> (Tips
+                                   <$> constDyn tips
+                                   <*> (SplitTipsEqually <$> splitTos)
+                                  )
+                             )
                     SplitTipsEquallyAllType ->
                       return . return . Just $ Tips tips SplitTipsEquallyAll
                     RelativeSplitTipsType ->
                       return . return . Just $ Tips tips RelativeSplitTips
           )
-          $ tips
+          $ tipsPercentageMaybe
   unwrapDynWidget Nothing tipsMaybeDynDyn
 
 itemizedSplitPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Purchase)
-itemizedSplitPurchaseForm actionLabel users groups = do
+  => Text -> Maybe Action
+  -> Dynamic t [User] -> Dynamic t [Group]
+  -> m (Event t Purchase)
+itemizedSplitPurchaseForm actionLabel currentAction users groups = do
   el "h3" . text $ actionLabel `T.append` " \"itemized split\" purchase"
-  user <- userInput "User" users
+  user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
-    desc       <- descriptionInput addEv
+    desc       <- descriptionInput
+                  (T.pack <$> (actionDesc =<< currentAction))
+                  addEv
     text "Amount: "
     let amount = fmap (sum . map splitItemAmount) $ splitItems
     dynText . fmap (T.pack . show) $ amount
-    tips <- nestedWidget "Tips: " (addTips users)
+    tips <- nestedWidget "Tips: " (addTips (actionTips =<< currentAction) users)
     splitItems <- nestedWidget "Split items: "
                   $ manageSplitItems tips users groups
     addEv <- button $ actionLabel `T.append` " purchase"
@@ -648,9 +719,11 @@ notSelectedItemDropdown showF noItemsVal init items selectedItems = mdo
 
 twoUsersFromDifferentGroupsWidget
   :: (DomBuilder t m, MonadHold t m, PostBuild t m)
-  => Dynamic t [User] -> Dynamic t [Group] -> a -> (User -> User -> m a)
+  => Dynamic t [User] -> Dynamic t [Group] -> Maybe User -> a
+  -> (User -> User -> m a)
   -> Dynamic t (m a)
-twoUsersFromDifferentGroupsWidget users groups errorVal widget = do
+twoUsersFromDifferentGroupsWidget
+    users groups maybeFirstUser errorVal widget = do
   users  <- users
   groups <- groups
   if length users < 2
@@ -660,7 +733,7 @@ twoUsersFromDifferentGroupsWidget users groups errorVal widget = do
       text msg
       return errorVal
     else
-      let firstUser = head users
+      let firstUser = maybe (head users) id maybeFirstUser
           maybeSecondUser = findUserNotInTheSameGroup users groups firstUser
       in return $ maybe
          ( do
@@ -675,14 +748,16 @@ twoUsersFromDifferentGroupsWidget users groups errorVal widget = do
          
 paymentTransactionForm0
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> User -> User -> Dynamic t [User] -> Dynamic t [Group]
+  => Text -> Maybe Action
+  -> User -> User -> Dynamic t [User] -> Dynamic t [Group]
   -> m (Event t Action)
-paymentTransactionForm0 actionLabel firstUser secondUser users groups = mdo
+paymentTransactionForm0 actionLabel currentAction
+                        firstUser secondUser users groups = mdo
   text "Debit user: "
   debitUser :: Dynamic t User
     <- notSelectedItemDropdown
        T.pack ""
-       (Just firstUser)
+       ( maybe (Just firstUser) (Just . actionDebitUser) currentAction )
        users
        ( fmap (\(groups, user) -> currentGroupOrUser groups user)
          . (attach . current) groups
@@ -702,7 +777,7 @@ paymentTransactionForm0 actionLabel firstUser secondUser users groups = mdo
          $ debitUser
        )
   el "br" blank
-  amount <- amountInput addEv
+  amount <- amountInput (actionAmount <$> currentAction) addEv
   addEv  <- button $ actionLabel `T.append` " payment"
   let action
         = PaymentAction
@@ -713,12 +788,18 @@ paymentTransactionForm0 actionLabel firstUser secondUser users groups = mdo
 
 paymentTransactionForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Text -> Dynamic t [User] -> Dynamic t [Group] -> m (Event t Action)
-paymentTransactionForm actionLabel users groups = do
+  => Text -> Maybe Action
+  -> Dynamic t [User] -> Dynamic t [Group]
+  -> m (Event t Action)
+paymentTransactionForm actionLabel currentAction users groups = do
   el "h3" . text $ actionLabel `T.append` " payment"
-  unwrapEventWidget . twoUsersFromDifferentGroupsWidget users groups never
+  unwrapEventWidget
+    . twoUsersFromDifferentGroupsWidget
+      users groups (actionDebitUser <$> currentAction) never
     $ \firstUser secondUser ->
-        paymentTransactionForm0 actionLabel firstUser secondUser users groups
+        paymentTransactionForm0
+          actionLabel currentAction
+          firstUser secondUser users groups
 
 actionTextPayedFor
     ( PurchaseAction
@@ -815,7 +896,7 @@ actionWidget users groups ix stateDyn = unwrapEventWidget $ stateDyn >>= \case
     cancelEditEv <- actionLink "cancel edit" st
     deleteEv <- actionLink "delete" st
     el "br" blank
-    actionEv <- actionForm "Update" users groups 
+    actionEv <- actionForm "Update" (Just action) users groups 
     return . leftmost $
       [ M.delete ix <$ deleteEv
       , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
@@ -833,7 +914,7 @@ manageActions
 manageActions actionsArr0 users groups = do
   el "h2" $ text "Manage actions"
   rec
-    addActionEv <- actionForm "Add" users groups
+    addActionEv <- actionForm "Add" Nothing users groups
     actionsMap :: Dynamic t (Map Int ActionState) <-
       foldDyn ($)
       ( M.fromAscList . zip [0..] . map (ActionState False) $ actionsArr0 )
