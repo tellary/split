@@ -504,9 +504,9 @@ addSplitItem firstUser users groups = do
   return $ tagValid splitItem addEv
 
 splitItemWidget :: DomBuilder t m
-  => SplitItemOnView
-  -> m (Event t SplitItemOnView)
-splitItemWidget onView@(SplitItemOnView deletable item) = el "li" $ do
+  => SplitItemCanBeDeleted
+  -> m (Event t SplitItem)
+splitItemWidget onView@(ItemCanBeDeleted deletable item) = el "li" $ do
   text . T.pack . printUsersList . splitItemUsers $ item
   text ", "
   text . T.pack . splitItemDesc $ item
@@ -516,48 +516,55 @@ splitItemWidget onView@(SplitItemOnView deletable item) = el "li" $ do
         then actionLink "delete" onView
         else return never
   el "br" $ blank
-  return ev
+  return . fmap unItemCanBeDeleted $ ev
 
 type CanBeDeleted = Bool
-data SplitItemOnView = SplitItemOnView CanBeDeleted SplitItem deriving Eq
+data ItemCanBeDeleted a
+  = ItemCanBeDeleted CanBeDeleted a deriving Eq
+type SplitItemCanBeDeleted = ItemCanBeDeleted SplitItem
 
-splitItemOnView (SplitItemOnView _ item) = item
+unItemCanBeDeleted (ItemCanBeDeleted _ a) = a
+
+tipItemsDyn
+  :: Reflex t
+  => Dynamic t [User] -> Dynamic t [Group] -> Dynamic t (Maybe Tips)
+  -> Dynamic t [SplitItem] -> Dynamic t [SplitItem]
+tipItemsDyn users groups tips splitItems = do
+  splitItems <- splitItems
+  users <- users
+  groups <- groups
+  tips <- tips
+  return $ MoneySplit.tipItems users groups tips splitItems
 
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
+  => Maybe [SplitItem]
+  -> Dynamic t (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
   -> m (Dynamic t [SplitItem])
-manageSplitItems tips users groups = do
+manageSplitItems currentSplitItems tips users groups = do
   addSplitItemEv <- unwrapEventWidget
                     . twoUsersFromDifferentGroupsWidget
                       users groups Nothing never
                     $ \firstUser _ -> addSplitItem firstUser users groups
   rec
     splitItems <-
-      foldDyn ($) []
+      foldDyn ($) (maybe [] id currentSplitItems)
       ( mergeWith (.)
-        [ (:) . SplitItemOnView True <$> addSplitItemEv
+        [ (:) <$> addSplitItemEv
         , delete <$> deleteSplitItemEv
         ]
       )
-    let splitItemsWithTips = do
-          splitItems <- splitItems
-          users <- users
-          groups <- groups
-          tips <- tips
-          return
-            $  splitItems
-            ++ ( map (SplitItemOnView False)
-                 . tipItems users groups tips
-                 . map splitItemOnView
-                 $ splitItems
-               )
+    let splitItemsWithTips
+          = (++)
+          <$> fmap (map (ItemCanBeDeleted True)) splitItems
+          <*> ( fmap (map (ItemCanBeDeleted False))
+                $ tipItemsDyn users groups tips splitItems )
     el "h5" $ text "Split items"
     deleteSplitItemEv <-
       el "ul" . simpleListOneEvent splitItemsWithTips
         $ \itemDyn -> unwrapEventWidget $ do
             item <- itemDyn
             return $ splitItemWidget item
-  return . fmap (map splitItemOnView) $ splitItemsWithTips
+  return splitItems
       
 nestedWidget :: DomBuilder t m => Text -> m a -> m a
 nestedWidget label widget = do
@@ -661,19 +668,21 @@ itemizedSplitPurchaseForm actionLabel currentAction users groups = do
                   (T.pack <$> (actionDesc =<< currentAction))
                   addEv
     text "Amount: "
-    let amount = fmap (sum . map splitItemAmount) $ splitItems
+    let amount
+          = fmap (sum . map splitItemAmount)
+          $ (++) <$> splitItems <*> tipItemsDyn users groups tips splitItems
     dynText . fmap (T.pack . show) $ amount
     tips <- nestedWidget "Tips: " (addTips (actionTips =<< currentAction) users)
     splitItems <- nestedWidget "Split items: "
-                  $ manageSplitItems tips users groups
+                  $ manageSplitItems
+                    (actionSplitItems =<< currentAction)
+                    tips users groups
     addEv <- button $ actionLabel `T.append` " purchase"
   let purchase
         = Purchase
         <$> user
         <*> fmap (T.unpack) desc
-        <*> ( fmap (sum . map splitItemAmount) . assumeValidDynamic
-              $ splitItems
-            )
+        <*> ( assumeValidDynamic $ amount )
         <*> ( assumeValidDynamic $ ItemizedSplit <$> tips <*> splitItems )
   return $ tagValid purchase addEv
 

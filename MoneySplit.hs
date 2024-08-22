@@ -266,6 +266,12 @@ actionTips (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit tips _ }))
 actionTips _
   = Nothing
 
+actionSplitItems
+    (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit _ items }))
+  = Just items
+actionSplitItems _
+  = Nothing
+
 isUserAction user (PaymentAction u1 u2 _) = user == u1 || user == u2
 isUserAction user (PurchaseAction p) = isUserPurchase user p
 
