@@ -503,20 +503,23 @@ addSplitItem firstUser users groups = do
         <*> amount
   return $ tagValid splitItem addEv
 
-splitItemWidget :: DomBuilder t m
-  => SplitItemCanBeDeleted
-  -> m (Event t SplitItem)
-splitItemWidget onView@(ItemCanBeDeleted deletable item) = el "li" $ do
-  text . T.pack . printUsersList . splitItemUsers $ item
-  text ", "
-  text . T.pack . splitItemDesc $ item
-  text " -- "
-  text . T.pack . show . splitItemAmount $ item
-  ev <- if deletable
-        then actionLink "delete" onView
-        else return never
-  el "br" $ blank
-  return . fmap unItemCanBeDeleted $ ev
+splitItemWidget :: (DomBuilder t m, PostBuild t m, MonadHold t m)
+  => Int -> Dynamic t SplitItemCanBeDeleted
+  -> m (Event t Int)
+splitItemWidget ix itemDyn
+  = el "li" . unwrapEventWidget $ do
+    ItemCanBeDeleted deletable item <- itemDyn
+    return $ do
+      text . T.pack . printUsersList . splitItemUsers $ item
+      text ", "
+      text . T.pack . splitItemDesc $ item
+      text " -- "
+      text . T.pack . show . splitItemAmount $ item
+      ev <- if deletable
+            then actionLink "delete" ix
+            else return never
+      el "br" $ blank
+      return ev
 
 type CanBeDeleted = Bool
 data ItemCanBeDeleted a
@@ -546,25 +549,30 @@ manageSplitItems currentSplitItems tips users groups = do
                       users groups Nothing never
                     $ \firstUser _ -> addSplitItem firstUser users groups
   rec
-    splitItems <-
-      foldDyn ($) (maybe [] id currentSplitItems)
+    splitItems :: Dynamic t (Map Int SplitItem) <-
+      foldDyn ($) (maybe mempty (M.fromAscList . zip [0..]) currentSplitItems)
       ( mergeWith (.)
-        [ (:) <$> addSplitItemEv
-        , delete <$> deleteSplitItemEv
+        [ addNew <$> addSplitItemEv
+        , M.delete <$> deleteSplitItemEv
         ]
       )
+    let tipSplitItems
+          = tipItemsDyn users groups tips . fmap M.elems $ splitItems
     let splitItemsWithTips
-          = (++)
-          <$> fmap (map (ItemCanBeDeleted True)) splitItems
-          <*> ( fmap (map (ItemCanBeDeleted False))
-                $ tipItemsDyn users groups tips splitItems )
+          = M.union
+          <$> fmap (fmap (ItemCanBeDeleted True)) splitItems
+          <*> do
+                splitItems <- splitItems
+                tipSplitItems <- tipSplitItems
+                case M.lookupMax splitItems of
+                  Just (k, _) ->
+                    return . M.fromAscList . zip [k + 1 .. ]
+                    . map (ItemCanBeDeleted False) $ tipSplitItems
+                  Nothing -> mempty
     el "h5" $ text "Split items"
     deleteSplitItemEv <-
-      el "ul" . simpleListOneEvent splitItemsWithTips
-        $ \itemDyn -> unwrapEventWidget $ do
-            item <- itemDyn
-            return $ splitItemWidget item
-  return splitItems
+      el "ul" $ listWithKeyOneEvent splitItemsWithTips splitItemWidget
+  return . fmap M.elems $ splitItems
       
 nestedWidget :: DomBuilder t m => Text -> m a -> m a
 nestedWidget label widget = do
@@ -937,7 +945,8 @@ manageActions actionsArr0 users groups = do
                   <*> groups
                   <*> (map actionStateAction . M.elems <$> actionsMap)
     el "h3" $ text "Actions list"
-    actionEv <- el "ul" $ listWithKeyOneEvent actionsMap (actionWidget users groups)
+    actionEv <- el "ul"
+                $ listWithKeyOneEvent actionsMap (actionWidget users groups)
   return actions
 
 app
