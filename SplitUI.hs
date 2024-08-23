@@ -507,14 +507,19 @@ moveUp ix item m
   = M.insert ix prev m2
   where
     (Just prev, m2) = M.insertLookupWithKey (\_ item _ -> item) (ix - 1) item m
-  
+
+moveDown ix item m
+  = M.insert ix next m2
+  where
+    (Just next, m2) = M.insertLookupWithKey (\_ item _ -> item) (ix + 1) item m
 
 splitItemWidget :: (DomBuilder t m, PostBuild t m, MonadHold t m)
-  => Int -> Dynamic t SplitItemCanBeDeleted
+  => Dynamic t Int -> Int -> Dynamic t SplitItemCanBeDeleted
   -> m (Event t (Map Int SplitItem -> Map Int SplitItem))
-splitItemWidget ix itemDyn
+splitItemWidget numItems ix itemDyn
   = el "li" . unwrapEventWidget $ do
     ItemCanBeDeleted deletable item <- itemDyn
+    numItems <- numItems
     return $ do
       text . T.pack . printUsersList . splitItemUsers $ item
       text ", "
@@ -524,6 +529,9 @@ splitItemWidget ix itemDyn
       moveUpEv <- if ix /= 0 && deletable
         then actionLink "up" ix
         else return never
+      moveDownEv <- if ix /= numItems - 1 && deletable
+        then actionLink "down" ix
+        else return never
       deleteEv <- if deletable
         then actionLink "delete" ix
         else return never
@@ -531,6 +539,7 @@ splitItemWidget ix itemDyn
       return . leftmost $
         [ M.delete ix <$ deleteEv
         , moveUp ix item <$ moveUpEv
+        , moveDown ix item <$ moveDownEv
         ]
 
 type CanBeDeleted = Bool
@@ -583,7 +592,10 @@ manageSplitItems currentSplitItems tips users groups = do
                   Nothing -> mempty
     el "h5" $ text "Split items"
     splitItemEv <-
-      el "ul" $ listWithKeyOneEvent splitItemsWithTips splitItemWidget
+      el "ul"
+      $ listWithKeyOneEvent
+        splitItemsWithTips
+        (splitItemWidget (M.size <$> splitItems))
   return . fmap M.elems $ splitItems
       
 nestedWidget :: DomBuilder t m => Text -> m a -> m a

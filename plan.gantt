@@ -87,16 +87,16 @@ today is 2024-08-19
 [Update LinkedIn] is 100% completed and starts on 2024-08-21
 [Edit split item purchases] is 100% completed and starts on 2024-08-20 and ends on 2024-08-22
 [Write deployment script for the 'split' app] is 100% completed and starts on 2024-08-22
-[Edit split items' order] is 0% completed and starts on 2024-08-23
-[Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-23
-[Don't allow empty users list in Split equally purchase] is 0% completed and starts on 2024-08-23
-[Add 25% and custom tips amount] is 0% completed and starts on 2024-08-23
-[Don't show 0 tips in split items] is 0% completed and starts on 2024-08-23
-[Validate deleted user not referenced in "SplitEqually" purchase] is 0% completed and starts on 2024-08-23
-[Edit split items] is 0% completed and starts on 2024-08-23
+[Edit split items' order] is 100% completed and starts on 2024-08-22 and ends on 2024-08-23
+[Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed and starts on 2024-08-24
+[Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-24
+[Don't allow empty users list in Split equally purchase] is 0% completed and starts on 2024-08-24
+[Add 25% and custom tips amount] is 0% completed and starts on 2024-08-24
+[Don't show 0 tips in split items] is 0% completed and starts on 2024-08-24
+[Validate deleted user not referenced in "SplitEqually" purchase] is 0% completed and starts on 2024-08-24
+[Edit split items] is 0% completed and starts on 2024-08-24
 2024-08-17 is open
 2024-08-24 is open
-then [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed
 then [Buffer: UI ready] ends on 2024-08-26 and is 0% completed
 [UI completed] happens on 2024-08-26
 then [Advertise among friends] is 0% completed
