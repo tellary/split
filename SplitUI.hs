@@ -503,9 +503,15 @@ addSplitItem firstUser users groups = do
         <*> amount
   return $ tagValid splitItem addEv
 
+moveUp ix item m
+  = M.insert ix prev m2
+  where
+    (Just prev, m2) = M.insertLookupWithKey (\_ item _ -> item) (ix - 1) item m
+  
+
 splitItemWidget :: (DomBuilder t m, PostBuild t m, MonadHold t m)
   => Int -> Dynamic t SplitItemCanBeDeleted
-  -> m (Event t Int)
+  -> m (Event t (Map Int SplitItem -> Map Int SplitItem))
 splitItemWidget ix itemDyn
   = el "li" . unwrapEventWidget $ do
     ItemCanBeDeleted deletable item <- itemDyn
@@ -515,11 +521,17 @@ splitItemWidget ix itemDyn
       text . T.pack . splitItemDesc $ item
       text " -- "
       text . T.pack . show . splitItemAmount $ item
-      ev <- if deletable
-            then actionLink "delete" ix
-            else return never
+      moveUpEv <- if ix /= 0 && deletable
+        then actionLink "up" ix
+        else return never
+      deleteEv <- if deletable
+        then actionLink "delete" ix
+        else return never
       el "br" $ blank
-      return ev
+      return . leftmost $
+        [ M.delete ix <$ deleteEv
+        , moveUp ix item <$ moveUpEv
+        ]
 
 type CanBeDeleted = Bool
 data ItemCanBeDeleted a
@@ -553,7 +565,7 @@ manageSplitItems currentSplitItems tips users groups = do
       foldDyn ($) (maybe mempty (M.fromAscList . zip [0..]) currentSplitItems)
       ( mergeWith (.)
         [ addNew <$> addSplitItemEv
-        , M.delete <$> deleteSplitItemEv
+        , splitItemEv
         ]
       )
     let tipSplitItems
@@ -570,7 +582,7 @@ manageSplitItems currentSplitItems tips users groups = do
                     . map (ItemCanBeDeleted False) $ tipSplitItems
                   Nothing -> mempty
     el "h5" $ text "Split items"
-    deleteSplitItemEv <-
+    splitItemEv <-
       el "ul" $ listWithKeyOneEvent splitItemsWithTips splitItemWidget
   return . fmap M.elems $ splitItems
       
