@@ -158,7 +158,7 @@ addGroup users groups = mdo
     -- 'selectUsers' generates 2 unnecessary updates
     -- we drop them to prevent "" error text being replaced
     -- with an actual error before any actual update is done
-    =<< dropValidDynamic (Left "") 2 newGroupUsersValid
+    =<< dropValidDynamic addGroupButtonEv (Left "") 2 newGroupUsersValid
   return addGroupEv
 
 data GroupDeletionErr = GroupInActionErr Group Action deriving Show
@@ -427,18 +427,28 @@ splitEquallyPurchaseForm actionLabel currentAction users = do
                      (T.pack <$> (actionDesc =<< currentAction))
                      addEv
     amount        <- amountInput (actionAmount <$> currentAction) addEv
-    selectedUsers <- assumeValidDynamic
-                     <$> selectUsers
-                         "split"
-                         (actionSplitEquallyUsers =<< currentAction)
-                         users
+    selectedUsers <- selectUsers
+                     "split"
+                     (actionSplitEquallyUsers =<< currentAction)
+                     users
+    let selectedUsersValid
+          = fromDynamic selectedUsers
+            $ \case
+                [] -> Left $ "At least one user must be selected for the "
+                             `T.append` "\"split equally\" action"
+                us -> Right $ us
     addEv         <- button $ actionLabel `T.append` " purchase"
+    text " "
+    -- The same reason to drop events as in addGroup
+    dynText
+      =<< errorDyn "" addEv
+      =<< dropValidDynamic addEv (Left "") 2 selectedUsersValid
   let purchase
         = Purchase
         <$> user
         <*> fmap (T.unpack) desc
         <*> amount
-        <*> (SplitEqually . map SplitToUser <$> selectedUsers)
+        <*> (SplitEqually . map SplitToUser <$> selectedUsersValid)
   return $ tagValid purchase addEv
 
 resettableDropdown
