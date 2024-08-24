@@ -92,6 +92,18 @@ dropE count e = do
 
 dropValidDynamic
   :: (Reflex t, MonadHold t m)
-  => Either err a -> Int -> ValidDynamic t err a -> m (ValidDynamic t err a)
-dropValidDynamic initVal count d
-  = fmap ExceptT (holdDyn initVal =<< (dropE count . updated . runExceptT $ d))
+  => Event t b -> Either err a
+  -> Int -> ValidDynamic t err a
+  -> m (ValidDynamic t err a)
+dropValidDynamic submitEvent initVal count validDyn
+  = fmap
+    ExceptT
+    ( holdDyn initVal =<< (
+        dropE count
+        . leftmost
+        $ [ updated d
+          , tagPromptlyDyn d submitEvent
+          ]
+        )
+    )
+  where d = runExceptT validDyn

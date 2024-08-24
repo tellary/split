@@ -56,9 +56,10 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Implement payment transactions on UI] is 100% completed and starts on 2024-08-02 and requires 2 days
 2024-08-03 is open
 [Require at least 2 users] is 100% completed and starts on 2024-08-03
-[Learn Reflex FRP: Stateful error handling] starts on 2024-08-05 and ends on 2024-08-12 and is 100% completed
+[Learn Reflex FRP: Stateful error handling] starts on 2024-08-05 and ends on 2024-08-24 and is 100% completed
 2024-08-06 is closed
 [Learn Reflex FRP: Stateful error handling] pauses on 2024-08-10
+[Learn Reflex FRP: Stateful error handling] pauses from 2024-08-13 to 2024-08-22
 [Validate users in "Manage users"] is 100% completed and starts on 2024-08-03 and ends on 2024-08-09
 [Validate users in "Manage users"] pauses on 2024-08-07
 [Validate users in "Manage users"] pauses on 2024-08-08
@@ -88,9 +89,9 @@ today is 2024-08-19
 [Edit split item purchases] is 100% completed and starts on 2024-08-20 and ends on 2024-08-22
 [Write deployment script for the 'split' app] is 100% completed and starts on 2024-08-22
 [Edit split items' order] is 100% completed and starts on 2024-08-22 and ends on 2024-08-23
+[Don't allow empty users list in Split equally purchase] is 100% completed and starts on 2024-08-23 and ends on 2024-08-24
 [Create SSL certificate for bar-code scanner to use the same method for money split] is 0% completed and starts on 2024-08-24
 [Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-24
-[Don't allow empty users list in Split equally purchase] is 0% completed and starts on 2024-08-24
 [Add 25% and custom tips amount] is 0% completed and starts on 2024-08-24
 [Don't show 0 tips in split items] is 0% completed and starts on 2024-08-24
 [Validate deleted user not referenced in "SplitEqually" purchase] is 0% completed and starts on 2024-08-24
