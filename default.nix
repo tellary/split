@@ -23,9 +23,10 @@ let pkgs = import
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
   ghcjs = reflex-platform.ghcjs.ghcWithPackages (pkgs: with pkgs; deps pkgs ++ [ghcjs-base]);
+  closure-compiler = pkgs.closure-compiler;
   ghcjsFor = execName : pkgs.stdenv.mkDerivation {
     name = "money-split";
-    buildInputs = [ghcjs];
+    buildInputs = [ghcjs pkgs.closurecompiler];
     src = ./.;
     phases = [ "unpackPhase" "buildPhase" "installPhase" "postInstall" ];
     unpackPhase = ''
@@ -36,6 +37,10 @@ let pkgs = import
     installPhase = ''
       mkdir $out/
       cp -r ${execName}.jsexe $out/
+      pushd $out/${execName}.jsexe
+      closure-compiler -W QUIET --js out.js --js_output_file out.min.js
+      mv out.min.js out.js
+      popd
       cp publish_report.sh website.json $out/
     '';
     postInstall = "cp $src/html/* $out/${execName}.jsexe/";
