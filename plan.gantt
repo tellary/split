@@ -95,6 +95,7 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Don't allow empty users list in Split equally purchase] is 100% completed and starts on 2024-08-23 and ends on 2024-08-24
 [Create SSL certificate for bar-code scanner to use the same method for money split] is 100% completed and starts on 2024-08-24
 [Reduce Javascript size] is 100% completed and starts on 2024-08-24 and ends on 2024-08-26
+[Edit purchases' order] is 100% completed and starts on 2024-08-26
 [Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-26
 [Add 25% and custom tips amount] is 0% completed and starts on 2024-08-26
 [Don't show 0 tips in split items] is 0% completed and starts on 2024-08-26

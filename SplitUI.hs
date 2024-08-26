@@ -933,29 +933,51 @@ data ActionState
 
 actionWidget
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Dynamic t [User] -> Dynamic t [Group] -> Int -> Dynamic t ActionState
+  => Dynamic t Int
+  -> Dynamic t [User] -> Dynamic t [Group] -> Int -> Dynamic t ActionState
   -> m (Event t (Map Int ActionState -> Map Int ActionState))
-actionWidget users groups ix stateDyn = unwrapEventWidget $ stateDyn >>= \case
-  st@(ActionState False action) -> return . el "li" $ do
-    actionText action
-    editEv   <- actionLink "edit" st
-    deleteEv <- actionLink "delete" st
-    return . leftmost $
-      [ M.delete ix <$ deleteEv
-      , M.update (\st -> Just st { actionStateEdit = True }) ix <$ editEv
-      ]
-  st@(ActionState True action) -> return . el "li" $ do
-    actionText action
-    cancelEditEv <- actionLink "cancel edit" st
-    deleteEv <- actionLink "delete" st
-    el "br" blank
-    actionEv <- nestedWidget "" $ actionForm "Update" (Just action) users groups 
-    return . leftmost $
-      [ M.delete ix <$ deleteEv
-      , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
-        <$> actionEv
-      , M.update (\st -> Just st { actionStateEdit = False }) ix <$ cancelEditEv
-      ]
+actionWidget maxIx users groups ix stateDyn = unwrapEventWidget $ do
+  state <- stateDyn
+  maxIx <- maxIx
+  case state of
+    st@(ActionState False action) -> return . el "li" $ do
+      actionText action
+      editEv   <- actionLink "edit" st
+      moveUpEv <- if ix /= 0
+        then actionLink "up" ix
+        else return never
+      moveDownEv <- if ix /= maxIx
+        then actionLink "down" ix
+        else return never
+      deleteEv <- actionLink "delete" st
+      return . leftmost $
+        [ M.delete ix <$ deleteEv
+        , M.update (\st -> Just st { actionStateEdit = True }) ix <$ editEv
+        , moveUp ix st <$ moveUpEv
+        , moveDown ix st <$ moveDownEv
+        ]
+    st@(ActionState True action) -> return . el "li" $ do
+      actionText action
+      cancelEditEv <- actionLink "cancel edit" st
+      moveUpEv <- if ix /= 0
+        then actionLink "up" ix
+        else return never
+      moveDownEv <- if ix /= maxIx
+        then actionLink "down" ix
+        else return never
+      deleteEv <- actionLink "delete" st
+      el "br" blank
+      actionEv <- nestedWidget ""
+                  $ actionForm "Update" (Just action) users groups 
+      return . leftmost $
+        [ M.delete ix <$ deleteEv
+        , (\action -> M.update (\_ -> Just (ActionState False action)) ix)
+          <$> actionEv
+        , M.update (\st -> Just st { actionStateEdit = False }) ix
+          <$ cancelEditEv
+        , moveUp ix st <$ moveUpEv
+        , moveDown ix st <$ moveDownEv
+        ]
 
 addNew el m = case M.lookupMax m of
   Just (ix, _) -> M.insert (ix + 1) el m
@@ -982,7 +1004,12 @@ manageActions actionsArr0 users groups = do
                   <*> (map actionStateAction . M.elems <$> actionsMap)
     el "h3" $ text "Actions list"
     actionEv <- el "ul"
-                $ listWithKeyOneEvent actionsMap (actionWidget users groups)
+                $ listWithKeyOneEvent
+                  actionsMap
+                  ( actionWidget
+                    (maybe 0 id . fmap fst . M.lookupMax <$> actionsMap)
+                    users groups
+                  )
   return actions
 
 app
