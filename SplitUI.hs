@@ -513,23 +513,25 @@ addSplitItem firstUser users groups = do
         <*> amount
   return $ tagValid splitItem addEv
 
-moveUp ix item m
-  = M.insert ix prev m2
+moveUp ix item m = m3
   where
-    (Just prev, m2) = M.insertLookupWithKey (\_ item _ -> item) (ix - 1) item m
+    Just (prevIx, prevItem) = M.lookupLT ix m
+    m2 = M.insert prevIx item m
+    m3 = M.insert ix prevItem m2
 
-moveDown ix item m
-  = M.insert ix next m2
+moveDown ix item m = m3
   where
-    (Just next, m2) = M.insertLookupWithKey (\_ item _ -> item) (ix + 1) item m
+    Just (nextIx, nextItem) = M.lookupGT ix m
+    m2 = M.insert nextIx item m
+    m3 = M.insert ix nextItem m2
 
 splitItemWidget :: (DomBuilder t m, PostBuild t m, MonadHold t m)
   => Dynamic t Int -> Int -> Dynamic t SplitItemCanBeDeleted
   -> m (Event t (Map Int SplitItem -> Map Int SplitItem))
-splitItemWidget numItems ix itemDyn
+splitItemWidget maxIx ix itemDyn
   = el "li" . unwrapEventWidget $ do
     ItemCanBeDeleted deletable item <- itemDyn
-    numItems <- numItems
+    maxIx <- maxIx
     return $ do
       text . T.pack . printUsersList . splitItemUsers $ item
       text ", "
@@ -539,7 +541,7 @@ splitItemWidget numItems ix itemDyn
       moveUpEv <- if ix /= 0 && deletable
         then actionLink "up" ix
         else return never
-      moveDownEv <- if ix /= numItems - 1 && deletable
+      moveDownEv <- if ix /= maxIx && deletable
         then actionLink "down" ix
         else return never
       deleteEv <- if deletable
@@ -605,7 +607,7 @@ manageSplitItems currentSplitItems tips users groups = do
       el "ul"
       $ listWithKeyOneEvent
         splitItemsWithTips
-        (splitItemWidget (M.size <$> splitItems))
+        (splitItemWidget (maybe 0 id . fmap fst . M.lookupMax <$> splitItems))
   return . fmap M.elems $ splitItems
       
 nestedWidget :: DomBuilder t m => Text -> m a -> m a
