@@ -38,8 +38,7 @@ let pkgs = import
       mkdir $out/
       cp -r ${execName}.jsexe $out/
       pushd $out/${execName}.jsexe
-      closure-compiler -W QUIET --js out.js --js_output_file out.min.js
-      mv out.min.js out.js
+      closure-compiler -W QUIET --js all.js --js_output_file all.min.js
       popd
       cp publish_report.sh website.json $out/
     '';

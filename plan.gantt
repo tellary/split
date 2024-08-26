@@ -90,7 +90,8 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Update LinkedIn] is 100% completed and starts on 2024-08-21
 [Edit split item purchases] is 100% completed and starts on 2024-08-20 and ends on 2024-08-22
 [Write deployment script for the 'split' app] is 100% completed and starts on 2024-08-22
-[Edit split items' order] is 100% completed and starts on 2024-08-22 and ends on 2024-08-23
+[Edit split items' order] is 100% completed and starts on 2024-08-22 and ends on 2024-08-26
+[Edit split items' order] pauses on 2024-08-24
 [Don't allow empty users list in Split equally purchase] is 100% completed and starts on 2024-08-23 and ends on 2024-08-24
 [Create SSL certificate for bar-code scanner to use the same method for money split] is 100% completed and starts on 2024-08-24
 [Reduce Javascript size] is 100% completed and starts on 2024-08-24 and ends on 2024-08-26
