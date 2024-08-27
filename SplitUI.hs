@@ -10,26 +10,30 @@
 
 module SplitUI where
 
-import           ActionsStore           (ActionsStore, getActions, putActions)
-import           Control.Monad          (join)
-import           Control.Monad.Fix      (MonadFix)
-import           Control.Monad.IO.Class (MonadIO)
-import           Data.List              (delete, find, (\\))
-import           Data.Map               (Map)
-import qualified Data.Map               as M
-import           Data.Maybe             (isJust)
-import           Data.Text              (Text)
-import qualified Data.Text              as T
-import           MoneySplit             hiding (addTips)
-import           Reflex.Dom             hiding (Group)
+import           ActionsStore               (ActionsStore, getActions,
+                                             putActions)
+import           Control.Monad              (join)
+import           Control.Monad.Fix          (MonadFix)
+import           Control.Monad.IO.Class     (MonadIO)
+import           Control.Monad.Trans.Except (runExceptT)
+import           Data.List                  (delete, find, (\\))
+import           Data.Map                   (Map)
+import qualified Data.Map                   as M
+import           Data.Maybe                 (isJust)
+import           Data.Text                  (Text)
+import qualified Data.Text                  as T
+import           MoneySplit                 hiding (addTips)
+import           Reflex.Dom                 hiding (Group)
 import           SplitReport
-import           Text.Printf            (printf)
-import           Text.Read              (readMaybe)
-import           ValidDynamic           (ValidDynamic, assumeValidDynamic,
-                                         dropValidDynamic, errorDyn,
-                                         errorWidget, fromDynamic,
-                                         fromDynamicEither, fromEvent,
-                                         tagValid, unwrapValidDynamicWidget)
+import           Text.Printf                (printf)
+import           Text.Read                  (readMaybe)
+import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
+                                             assumeValidValue, dropValidDynamic,
+                                             errorDyn, errorWidget, fromDynamic,
+                                             fromDynamicEither, fromEvent,
+                                             tagValid,
+                                             unwrapValidDynamicDynamicWidget,
+                                             unwrapValidDynamicWidget)
 
 resettableInput
   :: forall t m a b . (Show b, DomBuilder t m, MonadHold t m, MonadFix m)
@@ -563,18 +567,20 @@ unItemCanBeDeleted (ItemCanBeDeleted _ a) = a
 
 tipItemsDyn
   :: Reflex t
-  => Dynamic t [User] -> Dynamic t [Group] -> Dynamic t (Maybe Tips)
+  => Dynamic t [User] -> Dynamic t [Group] -> ValidDynamic t err (Maybe Tips)
   -> Dynamic t [SplitItem] -> Dynamic t [SplitItem]
 tipItemsDyn users groups tips splitItems = do
   splitItems <- splitItems
   users <- users
   groups <- groups
-  tips <- tips
+  tips <- runExceptT tips >>= \case
+    Right tips -> return tips
+    Left  _    -> return Nothing
   return $ MoneySplit.tipItems users groups tips splitItems
 
 manageSplitItems :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Maybe [SplitItem]
-  -> Dynamic t (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
+  -> ValidDynamic t Text (Maybe Tips) -> Dynamic t [User] -> Dynamic t [Group]
   -> m (Dynamic t [SplitItem])
 manageSplitItems currentSplitItems tips users groups = do
   addSplitItemEv <- unwrapEventWidget
@@ -643,61 +649,112 @@ manageSplitTipsItems
 manageSplitTipsItems = do
   undefined
 
+data TipsSelection
+  = TenPercent
+  | TwentyPercent
+  | TwentyFivePercent
+  | Custom
+  deriving (Eq, Ord)
+
+tipsSelection 10 = TenPercent
+tipsSelection 20 = TwentyPercent
+tipsSelection 25 = TwentyFivePercent
+tipsSelection _  = Custom
+
+tipSelectionToPercentage TenPercent = 10
+tipSelectionToPercentage TwentyPercent = 20
+tipSelectionToPercentage TwentyFivePercent = 25
+tipSelectionToPercentage Custom
+  = error "'tipSelectionToPercentage' doesn't work for 'Custom' tip selection"
+
 addTips
-  :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Maybe Tips -> Dynamic t [User] -> m (Dynamic t (Maybe Tips))
-addTips currentTips users = do
+  :: forall t m a . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Event t a -> Maybe Tips -> Dynamic t [User]
+  -> m (ValidDynamic t Text (Maybe Tips))
+addTips submitEv currentTips users = do
   text "Tip percentage: "
-  tipsPercentageMaybe <- value
+  maybeTipsSelection <- value
                          <$> ( dropdown
-                               (tipsPercentage <$> currentTips)
-                               (constDyn (Just 10 =: "10%" <> Just 20 =: "20%"))
+                               ( tipsSelection . tipsPercentage
+                                 <$> currentTips )
+                               ( constDyn
+                                 (    Just TenPercent        =: "10%"
+                                   <> Just TwentyPercent     =: "20%"
+                                   <> Just TwentyFivePercent =: "25%"
+                                   <> Just Custom            =: "Custom"
+                                 )
+                               )
                                def
                              )
+  maybeTipsPercentageValid <- unwrapValidDynamicWidget Nothing $ do
+    maybeTipsSelection <- maybeTipsSelection
+    case maybeTipsSelection of
+      Just Custom -> return $ do
+        el "br" blank
+        text "Custom tips percentage: "
+        maybeTipsPercentageValid :: ValidDynamic t Text (Maybe Int)
+          <- validInput (T.pack . maybe "" show)
+             (Just . tipsPercentage <$> currentTips)
+             submitEv $ \txt ->
+          maybe
+            (Left $ "Failed to read amount: " `T.append` txt) id
+            $ do
+                tipsPercentage <- readMaybe . T.unpack $ txt :: Maybe Int
+                if tipsPercentage < 0
+                  then return . Left $ "Negative tips not allowed"
+                  else if tipsPercentage == 0
+                       then return . Right $ Nothing
+                       else return . Right . Just $ tipsPercentage
+        return maybeTipsPercentageValid
+      Just selection ->
+        return . return
+        . assumeValidValue . Just $ tipSelectionToPercentage selection
+      Nothing ->
+        return . return
+        . assumeValidValue $ Nothing
   el "br" $ blank
-  let tipsMaybeDynDyn :: Dynamic t (m (Dynamic t (Maybe Tips))) = do
-        tipsPercentageMaybe <- tipsPercentageMaybe
-        return $ maybe
-          ( return . return $ Nothing )
-          ( \tips -> do
-              text "How to split tips? "
-              splitType <- value <$> dropdown
-                ( maybe
-                  RelativeSplitTipsType
-                  ( tipsSplitType . tipsSplit )
-                  currentTips
-                )
-                ( constDyn
-                  (    SplitTipsEquallyType    =: "Split equally"
-                    <> SplitTipsEquallyAllType =: "Split equally all"
-                    -- <> ItemizedSplitTipsType  =: "Itemized split"
-                    <> RelativeSplitTipsType   =: "Split relatively"
-                  )
-                )
-                def
-              el "br" $ blank
-              unwrapDynWidget Nothing $ do
-                  splitType <- splitType
-                  return case splitType of
-                    SplitTipsEquallyType -> do
-                      users <- selectUsers
-                               "tipsUsers"
-                               (tipsSplitEquallyUsers =<< currentTips)
-                               users
-                      let splitTos = fmap (map SplitToUser) users
-                      return (Just
-                              <$> (Tips
-                                   <$> constDyn tips
-                                   <*> (SplitTipsEqually <$> splitTos)
-                                  )
-                             )
-                    SplitTipsEquallyAllType ->
-                      return . return . Just $ Tips tips SplitTipsEquallyAll
-                    RelativeSplitTipsType ->
-                      return . return . Just $ Tips tips RelativeSplitTips
-          )
-          $ tipsPercentageMaybe
-  unwrapDynWidget Nothing tipsMaybeDynDyn
+  unwrapValidDynamicDynamicWidget Nothing $ do
+    maybeTipsPercentage <- maybeTipsPercentageValid
+    return $ maybe
+      ( return . return $ Nothing )
+      ( \tips -> do
+          text "How to split tips? "
+          splitType <- value <$> dropdown
+            ( maybe
+              RelativeSplitTipsType
+              ( tipsSplitType . tipsSplit )
+              currentTips
+            )
+            ( constDyn
+              (    SplitTipsEquallyType    =: "Split equally"
+                <> SplitTipsEquallyAllType =: "Split equally all"
+                -- <> ItemizedSplitTipsType  =: "Itemized split"
+                <> RelativeSplitTipsType   =: "Split relatively"
+              )
+            )
+            def
+          el "br" $ blank
+          unwrapDynWidget Nothing $ do
+              splitType <- splitType
+              return case splitType of
+                SplitTipsEquallyType -> do
+                  users <- selectUsers
+                           "tipsUsers"
+                           (tipsSplitEquallyUsers =<< currentTips)
+                           users
+                  let splitTos = fmap (map SplitToUser) users
+                  return (Just
+                          <$> (Tips
+                               <$> constDyn tips
+                               <*> (SplitTipsEqually <$> splitTos)
+                              )
+                         )
+                SplitTipsEquallyAllType ->
+                  return . return . Just $ Tips tips SplitTipsEquallyAll
+                RelativeSplitTipsType ->
+                  return . return . Just $ Tips tips RelativeSplitTips
+      )
+      $ maybeTipsPercentage
 
 itemizedSplitPurchaseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -716,7 +773,9 @@ itemizedSplitPurchaseForm actionLabel currentAction users groups = do
           = fmap (sum . map splitItemAmount)
           $ (++) <$> splitItems <*> tipItemsDyn users groups tips splitItems
     dynText . fmap (T.pack . show) $ amount
-    tips <- nestedWidget "Tips: " (addTips (actionTips =<< currentAction) users)
+    tips <- nestedWidget
+            "Tips: "
+            (addTips addEv (actionTips =<< currentAction) users)
     splitItems <- nestedWidget "Split items: "
                   $ manageSplitItems
                     (actionSplitItems =<< currentAction)
@@ -726,8 +785,8 @@ itemizedSplitPurchaseForm actionLabel currentAction users groups = do
         = Purchase
         <$> user
         <*> fmap (T.unpack) desc
-        <*> ( assumeValidDynamic $ amount )
-        <*> ( assumeValidDynamic $ ItemizedSplit <$> tips <*> splitItems )
+        <*> assumeValidDynamic amount
+        <*> ( ItemizedSplit <$> tips <*> assumeValidDynamic splitItems )
   return $ tagValid purchase addEv
 
 preselectedItemDropdown

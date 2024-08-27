@@ -4,7 +4,7 @@ Project starts 2024-05-27
 saturday are closed
 sunday are closed
 
-today is 2024-08-26
+today is 2024-08-27
 today is colored in lightgrey
 
 -- Core logic --
@@ -97,11 +97,12 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Reduce Javascript size] is 100% completed and starts on 2024-08-24 and ends on 2024-08-26
 [Edit purchases' order] is 100% completed and starts on 2024-08-26
 [Upload only required files] is 100% completed and starts on 2024-08-26
-[Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-26
-[Add 25% and custom tips amount] is 0% completed and starts on 2024-08-26
-[Don't show 0 tips in split items] is 0% completed and starts on 2024-08-26
-[Validate deleted user not referenced in "SplitEqually" purchase] is 0% completed and starts on 2024-08-26
-[Edit split items] is 0% completed and starts on 2024-08-26
+[Add 25% and custom tips percentage] is 100% completed and starts on 2024-08-27
+[Custom tips amount] is 0% completed and starts on 2024-08-27
+[Debug why font size is "jumping" in Mobile Chrome browser] is 0% completed and starts on 2024-08-27
+[Don't show 0 tips in split items] is 0% completed and starts on 2024-08-27
+[Validate deleted user not referenced in "SplitEqually" purchase] is 0% completed and starts on 2024-08-27
+[Edit split items] is 0% completed and starts on 2024-08-27
 2024-08-17 is open
 2024-08-24 is open
 then [Buffer: UI ready] ends on 2024-08-26 and is 0% completed

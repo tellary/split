@@ -84,6 +84,21 @@ unwrapValidDynamicWidget initVal dynWidget
   = fmap (ExceptT . join . fmap runExceptT)
     (holdDyn (assumeValidValue initVal) =<< dyn dynWidget)
 
+dynamicValidDynamic
+  :: (Reflex t, Applicative m)
+  => ValidDynamic t err (m (Dynamic t a))
+  -> Dynamic t (m (ValidDynamic t err a))
+dynamicValidDynamic dynWidget
+  = ffor (runExceptT dynWidget) $ \case
+      Right dynWidget -> fmap (ExceptT . fmap Right) dynWidget
+      Left err -> pure . ExceptT . pure . Left $ err
+
+unwrapValidDynamicDynamicWidget
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m)
+  => a -> ValidDynamic t err (m (Dynamic t a)) -> m (ValidDynamic t err a)
+unwrapValidDynamicDynamicWidget initVal dynWidget
+  = unwrapValidDynamicWidget initVal . dynamicValidDynamic $ dynWidget
+    
 dropE :: (Reflex t, MonadHold t m) => Int -> Event t a -> m (Event t a)
 dropE 0     e = return e
 dropE count e = do
