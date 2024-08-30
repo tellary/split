@@ -17,3 +17,9 @@ table tr td:nth-of-type(2).nested {
     border: 1px solid;
     padding: 1em
 }
+
+* {
+    /* Prevent font boosting in Mobile Chrome */
+    /* https://stackoverflow.com/a/12965146/1060693 */
+    max-height: 999999px
+}
