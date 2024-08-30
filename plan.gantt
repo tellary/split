@@ -102,12 +102,10 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Add 25% and custom tips percentage] pauses on 2024-08-29
 [Debug why font size is "jumping" in Mobile Chrome browser] is 100% completed and starts on 2024-08-29
 [Debug Javascript errors] is 100% completed and starts on 2024-08-30
-[Don't show 0 tips in split items] is 0% completed and starts on 2024-08-30
-[Validate deleted user not referenced in "SplitEqually" purchase] is 0% completed and starts on 2024-08-30
+[Validate deleted user not referenced in 'SplitEqually' and 'ItemizeSplit' purchases] is 100% completed and starts on 2024-08-30
 2024-08-17 is open
 2024-08-24 is open
 2024-08-28 is closed
-' then [Buffer: UI ready] ends on 2024-08-26 and is 0% completed
 [UI completed] happens on 2024-08-30
 [Advertise in LinkedIn] is 0% completed and starts on 2024-08-30 and requires 2 days
 

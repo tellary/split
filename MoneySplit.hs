@@ -154,6 +154,14 @@ purchaseSplitEquallyUsers (Purchase { purchaseSplit = SplitEqually splitTos })
   = Just . splitTosUsers $ splitTos
 purchaseSplitEquallyUsers _ = Nothing
 
+purchaseItemizedSplitUsers
+      (Purchase { purchaseSplit = itemizedSplit@(ItemizedSplit _ _)})
+  = itemizedSplitUsers itemizedSplit
+purchaseItemizedSplitUsers _ = Nothing
+
+purchaseUsers p
+  = nub $ purchaseUser p : maybe [] id (purchaseSplitEquallyUsers p) ++ maybe [] id (purchaseItemizedSplitUsers p)
+
 actionSplitEquallyUsers (PurchaseAction p) = purchaseSplitEquallyUsers p
 actionSplitEquallyUsers _ = Nothing
 
@@ -215,7 +223,13 @@ data Split
 instance FromJSON Split
 instance ToJSON Split
 
-isUserPurchase user = (== user) . purchaseUser
+itemizedSplitUsers (ItemizedSplit tips splitItems)
+  = Just
+    $  splitItemsUsers splitItems
+    ++ maybe [] id (tipsSplitEquallyUsers =<< tips)
+itemizedSplitUsers _ = Nothing
+
+isUserPurchase user p = user `elem` purchaseUsers p
 
 maybeSplitItems (ItemizedSplit _ items) = Just items
 maybeSplitItems  _                    = Nothing
