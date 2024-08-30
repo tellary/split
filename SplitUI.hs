@@ -678,7 +678,8 @@ addTips submitEv currentTips users = do
                                ( tipsSelection . tipsPercentage
                                  <$> currentTips )
                                ( constDyn
-                                 (    Just TenPercent        =: "10%"
+                                 (    Nothing =: "No tips"
+                                   <> Just TenPercent        =: "10%"
                                    <> Just TwentyPercent     =: "20%"
                                    <> Just TwentyFivePercent =: "25%"
                                    <> Just Custom            =: "Custom"
