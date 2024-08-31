@@ -4,7 +4,7 @@ Project starts 2024-05-27
 saturday are closed
 sunday are closed
 
-today is 2024-08-30
+today is 2024-08-31
 today is colored in lightgrey
 
 -- Core logic --
@@ -103,11 +103,14 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Debug why font size is "jumping" in Mobile Chrome browser] is 100% completed and starts on 2024-08-29
 [Debug Javascript errors] is 100% completed and starts on 2024-08-30
 [Validate deleted user not referenced in 'SplitEqually' and 'ItemizeSplit' purchases] is 100% completed and starts on 2024-08-30
+[Learn Reflex FRP: Fix cycle error on selecting "custom" tips] is 100% completed and starts on 2024-08-30  and ends on 2024-08-31
 2024-08-17 is open
 2024-08-24 is open
 2024-08-28 is closed
-[UI completed] happens on 2024-08-30
-[Advertise in LinkedIn] is 0% completed and starts on 2024-08-30 and requires 2 days
+2024-08-31 is open
+2024-09-01 is open
+[UI completed] happens on 2024-08-31
+[Advertise in LinkedIn] is 0% completed and starts on 2024-09-01 and requires 2 days
 
 -- Core logic --
 

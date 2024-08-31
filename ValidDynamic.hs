@@ -51,7 +51,12 @@ tagValid
   => ValidDynamic t err a -> Event t b -> Event t a
 tagValid (ExceptT validInput) submitEvent
   = mapMaybe maybeValidValue
-  . traceEventIfEnabled "tagValid" . tagPromptlyDyn validInput
+  . traceEventIfEnabled "tagValid"
+  -- Using 'tag . current' instead of 'tagPromptlyDyn' to avoid "causality
+  -- loops" as recommended per
+  --
+  -- http://docs.reflex-frp.org/en/latest/app_devel_docs.html#hang-stack-overflow
+  . (tag . current) validInput
   $ submitEvent
 
 errorDyn
