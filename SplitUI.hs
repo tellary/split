@@ -367,7 +367,7 @@ splitAllExpenseForm
   -> Dynamic t [User]
   -> m (Event t Expense)
 splitAllExpenseForm actionLabel currentAction users = do
-  el "h3" . text $ actionLabel `T.append` " \"split all\" expense"
+  el "h3" . text $ actionLabel `T.append` " \"split equally to all\" expense"
   user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
     desc   <- descriptionInput

@@ -14,7 +14,10 @@ data BrowserActionsStore = BrowserActionsStore
 
 instance ActionsStore BrowserActionsStore where
   putActions _ actions = liftIO $ do
-    setItem "splitActions" (pack . UTF8.toString . encode $ actions) localStorage
+    setItem
+      "splitActions"
+      (pack . UTF8.toString . encode $ actions)
+      localStorage
   getActions _ = liftIO $ do
     strMaybe <- getItem "splitActions" localStorage
     case strMaybe of

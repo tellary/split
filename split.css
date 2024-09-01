@@ -23,3 +23,11 @@ table tr td:nth-of-type(2).nested {
     /* https://stackoverflow.com/a/12965146/1060693 */
     max-height: 999999px
 }
+
+span.notice {
+    border: 2px solid red;
+    padding: 1em;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    display: inline-block;
+}

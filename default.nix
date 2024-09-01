@@ -56,4 +56,6 @@ in {
   ghcjsOysters202408 = ghcjsFor "oysters202408";
 
   ghcjs202408oyestersAndCrouton = ghcjsFor "202408oyestersAndCrouton";
+
+  ghcjs2024coimbra = ghcjsFor "2024coimbra";
 }

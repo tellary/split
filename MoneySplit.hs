@@ -544,8 +544,8 @@ printSummaryBySingleReason actions  acc reasonGroup
     b = balance acc txs
 -- printSummaryBySingleReason actions3 (GroupAccount ["Tasha","Ilya"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
 -- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
--- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
--- printSummaryBySingleReason actions3 (UserAccount "Aigiza") (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
+-- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Alice", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"]))}])
+-- printSummaryBySingleReason actions3 (UserAccount "Alice") (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Alice", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"]))}])
 -- printSummaryBySingleReason actions1 (UserAccount "Ilya") (TxReasonExpense (Expense {expenseUser = "Serge", expenseDesc = "Salad", expenseAmount = 14.05, expenseSplit = SplitEqually ["Ilya"]}),[Transaction {txDebitAccount = UserAccount "Serge", txCreditAccount = UserAccount "Ilya", txAmount = 14.05, txReason = TxReasonExpense (Expense {expenseUser = "Serge", expenseDesc = "Salad", expenseAmount = 14.05, expenseSplit = SplitEqually ["Ilya"]})}])
 
 printSummaryBySingleReasonWasPayed _ acc balance (TxReasonPayment, txs)
@@ -629,8 +629,8 @@ printAccountList accs
   = printUsersList users
   where
     users :: [String] = concat . map accountUsers $ accs
--- printAccountList [(UserAccount "Aigiza"), (GroupAccount ["Dima", "Alena"])]
--- printAccountList [(UserAccount "Aigiza")]
+-- printAccountList [(UserAccount "Alice"), (GroupAccount ["Dima", "Alena"])]
+-- printAccountList [(UserAccount "Alice")]
 -- printAccountList [(GroupAccount ["Dima", "Alena"])]
 
 data GramiticTime = Present | Past deriving Show
@@ -915,7 +915,7 @@ printNikiReport2
 printSergeReport2
   = putStrLn . printAccountReport nullify2 $ (UserAccount "Serge")
 
-users3 = ["Tasha", "Ilya", "Alena", "Dima", "Aigiza"]
+users3 = ["Tasha", "Ilya", "Alena", "Dima", "Alice"]
 actions3
   = Actions users3 [["Dima", "Alena"], ["Tasha", "Ilya"]]
     [ -- USD/EUR = 0.9211 as of May 25th, 478.40*0.9211 = 440.65
@@ -942,12 +942,12 @@ actions3
       )
     , ExpenseAction (Expense "Ilya" "Cafe Papa in Coimbra"
                       77.5     SplitEquallyAll)
-    , ExpenseAction (Expense "Aigiza" "Cafe Trazarte in Óbidos"
+    , ExpenseAction (Expense "Alice" "Cafe Trazarte in Óbidos"
                       65.4     SplitEquallyAll)
     , ExpenseAction (Expense "Dima" "Large Ginjinha"
                       17       SplitEquallyAll)
     , ExpenseAction (Expense "Dima" "Two small Ginjinhas"
-                      8       (SplitEqually [SplitToUser "Aigiza"]))
+                      8       (SplitEqually [SplitToUser "Alice"]))
     , PaymentAction "Dima" "Ilya" (200 - 12.44)
     ]
 
@@ -956,8 +956,8 @@ nullify3 = nullifyBalances . actionsToTransactions $ actions3
 printNullify3 :: IO ()
 printNullify3 = pPrint nullify3
 
-printAigizaReport3
-  = putStrLn . printAccountReport nullify3 $ UserAccount "Aigiza"
+printAliceReport3
+  = putStrLn . printAccountReport nullify3 $ UserAccount "Alice"
 
 printDimaReport3
   = putStrLn . printAccountReport nullify3 $ GroupAccount ["Dima", "Alena"]
