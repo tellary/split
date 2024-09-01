@@ -4,8 +4,8 @@ module ActionsStore where
 
 import Control.Monad.IO.Class (MonadIO)
 import Debug.Trace            (trace)
-import MoneySplit             (Action (PurchaseAction), Actions (Actions),
-                               Purchase (Purchase), Split (SplitEquallyAll))
+import MoneySplit             (Action (ExpenseAction), Actions (Actions),
+                               Expense (Expense), Split (SplitEquallyAll))
 
 class ActionsStore s where
   putActions :: MonadIO m => s -> Actions -> m ()
@@ -20,6 +20,6 @@ instance ActionsStore StubActionsStore where
       $ Actions
         ["Ilya", "Tasha", "Dima", "Alena", "Aigiza"]
         [["Ilya", "Tasha"]]
-        [ PurchaseAction
-          ( Purchase "Ilya" "AirBnb" 442 SplitEquallyAll )
+        [ ExpenseAction
+          ( Expense "Ilya" "AirBnb" 442 SplitEquallyAll )
         ]

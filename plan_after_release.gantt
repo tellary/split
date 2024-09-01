@@ -4,7 +4,8 @@ Project starts 2024-09-27
 saturday are closed
 sunday are closed
 
-[Don't add purchase when only one user group exists] is 0% completed
+[User spend is improperly reported if the user pays tips but has no items in an itemized split] is 0% completed
+then [Don't add purchase when only one user group exists] is 0% completed
 then [Custom tips amount] is 0% completed
 then [Edit split items] is 0% completed
 then [Implement multiple workspaces] is 0% completed and requires 2 days and starts on 2024-08-21

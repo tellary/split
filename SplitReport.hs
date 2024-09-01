@@ -14,18 +14,18 @@ import           Data.Function       ((&))
 import qualified Data.Text           as T
 import           ExpandableEl        (expandableContentLi)
 import           MoneySplit          (Account, Actions (Actions), Amount,
+                                      Expense (Expense, expenseAmount,
+                                               expenseDesc, expenseSplit,
+                                               expenseUser),
                                       GramiticTime (Present),
                                       Negation (Affirmative),
-                                      Purchase (Purchase, purchaseAmount,
-                                                purchaseDesc, purchaseSplit,
-                                                purchaseUser),
                                       Split (ItemizedSplit, SplitEqually),
                                       SplitItem (splitItemAmount,
                                                  splitItemDesc),
                                       Transaction (txAmount, txCreditAccount,
                                                    txDebitAccount),
-                                      TxReason (TxReasonPayment,
-                                                TxReasonPurchase),
+                                      TxReason (TxReasonExpense,
+                                                TxReasonPayment),
                                       Voice (Active, Passive), accountUsers,
                                       actionsAccounts, addTips, balance,
                                       creditAccountTransactions,
@@ -110,12 +110,12 @@ reportAccountSingleReasonDetails
   :: DomBuilder t m => Actions -> (TxReason, [Transaction]) -> m ()
 reportAccountSingleReasonDetails
       actions@( Actions _ groups _ )
-      ( TxReasonPurchase
-        ( Purchase
-          { purchaseUser = purchaseUser
-          , purchaseDesc = purchaseDesc
-          , purchaseAmount = purchaseAmount
-          , purchaseSplit = SplitEqually splitTos
+      ( TxReasonExpense
+        ( Expense
+          { expenseUser = expenseUser
+          , expenseDesc = expenseDesc
+          , expenseAmount = expenseAmount
+          , expenseSplit = SplitEqually splitTos
           }
         )
       , txs) = do
@@ -124,16 +124,16 @@ reportAccountSingleReasonDetails
       . printAccountList
       . (\acc -> [acc])
       . userToAccount groupsByUsersVal
-      $ purchaseUser
+      $ expenseUser
     text " payed "
-    text . T.pack . show $ purchaseAmount
+    text . T.pack . show $ expenseAmount
     text " for \""
-    text . T.pack $ purchaseDesc
+    text . T.pack $ expenseDesc
     text "\" split equally:"
     el "ul" . forM_ (splitTosToAccounts actions splitTos) $ \acc -> do
       el "li" $ do
-        let amount = if purchaseUser `elem` accountUsers acc
-                     then purchaseAmount + (balance acc $ txs)
+        let amount = if expenseUser `elem` accountUsers acc
+                     then expenseAmount + (balance acc $ txs)
                      else balance acc $ txs
         text . T.pack . show $ amount
         text " for "
@@ -141,12 +141,12 @@ reportAccountSingleReasonDetails
   where groupsByUsersVal = groupsByUsers groups
 reportAccountSingleReasonDetails
       actions@( Actions users groups _ )
-      ( TxReasonPurchase
-        ( Purchase
-          { purchaseUser = purchaseUser
-          , purchaseDesc = purchaseDesc
-          , purchaseAmount = purchaseAmount
-          , purchaseSplit = ItemizedSplit tips splitItems
+      ( TxReasonExpense
+        ( Expense
+          { expenseUser = expenseUser
+          , expenseDesc = expenseDesc
+          , expenseAmount = expenseAmount
+          , expenseSplit = ItemizedSplit tips splitItems
           }
         )
       , _)
@@ -157,11 +157,11 @@ reportAccountSingleReasonDetails
           . printAccountList
           . (\acc -> [acc])
           . userToAccount groupsByUsersVal
-          $ purchaseUser
+          $ expenseUser
         text " payed "
-        text . T.pack . show $ purchaseAmount
+        text . T.pack . show $ expenseAmount
         text " for \""
-        text . T.pack $ purchaseDesc
+        text . T.pack $ expenseDesc
         text "\" split as follows:"
         reportSplitItemsList actions splitItemsWithTips
       [] -> error "'ItemizedSplit' should split amoung at least 1 account"
@@ -178,14 +178,14 @@ reportAccountSingleReasonWithSummary _ summary (TxReasonPayment, _)
   = (el "li" .  text . T.pack $ summary)
 reportAccountSingleReasonWithSummary
       _ summary
-      ( TxReasonPurchase
-        ( Purchase { purchaseSplit = SplitEqually [_] } )
+      ( TxReasonExpense
+        ( Expense { expenseSplit = SplitEqually [_] } )
         ,
         _
       )
   = (el "li" .  text . T.pack $ summary)
 reportAccountSingleReasonWithSummary
-      actions summary reasonGroup@(TxReasonPurchase _, _)
+      actions summary reasonGroup@(TxReasonExpense _, _)
   = expandableContentLi
     (text . T.pack $ summary)
     (text . T.pack $ summary)

@@ -1,0 +1,522 @@
+{
+  "actionsArr": [
+    {
+      "contents": {
+        "purchaseAmount": "320",
+        "purchaseDesc": "AirBnb (358.76 USD = 320 EUR)",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "35",
+        "purchaseDesc": "Tomorrow at 9",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "24",
+        "purchaseDesc": "Tickets to Montserrate",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "18",
+        "purchaseDesc": "Aug-22 taxi in Sintra",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "28.7",
+        "purchaseDesc": "Hamburger das Maças",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "23.7",
+        "purchaseDesc": "Honest Greens Aug-22",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "8.9",
+        "purchaseDesc": "Honest Greens Desserts Aug-23",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "7",
+        "purchaseDesc": "Orange Juice on the beach Aug-23",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "6",
+        "purchaseDesc": "Tuk-Tuk uphill from the beach Aug-23",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "27.5",
+        "purchaseDesc": "Honest Greens Aug-23",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "39",
+        "purchaseDesc": "Tact Aug-24",
+        "purchaseSplit": {
+          "contents": [
+            null,
+            [
+              {
+                "splitItemAmount": "34",
+                "splitItemDesc": "Breakfast with Tasha",
+                "splitItemTo": {
+                  "contents": "Ilya",
+                  "tag": "SplitToUser"
+                }
+              },
+              {
+                "splitItemAmount": "5",
+                "splitItemDesc": "Coffee & croissant",
+                "splitItemTo": {
+                  "contents": "Alex",
+                  "tag": "SplitToUser"
+                }
+              }
+            ]
+          ],
+          "tag": "ItemizedSplit"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "8.6",
+        "purchaseDesc": "Mantegaria Aug-24",
+        "purchaseSplit": {
+          "contents": [
+            null,
+            [
+              {
+                "splitItemAmount": "2",
+                "splitItemDesc": "Capuchino minus Cafe",
+                "splitItemTo": {
+                  "contents": "Ilya",
+                  "tag": "SplitToUser"
+                }
+              },
+              {
+                "splitItemAmount": "3.3",
+                "splitItemDesc": "1/2 of the rest",
+                "splitItemTo": {
+                  "contents": "Alex",
+                  "tag": "SplitToUser"
+                }
+              },
+              {
+                "splitItemAmount": "3.3",
+                "splitItemDesc": "1/2 of the rest",
+                "splitItemTo": {
+                  "contents": "Ilya",
+                  "tag": "SplitToUser"
+                }
+              }
+            ]
+          ],
+          "tag": "ItemizedSplit"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "15.7",
+        "purchaseDesc": "Maria Food Hub Aug-24",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "33",
+        "purchaseDesc": "Tickets to Convento dos Capuchos Aug-25",
+        "purchaseSplit": {
+          "contents": [
+            null,
+            [
+              {
+                "splitItemAmount": "11",
+                "splitItemDesc": "1x ticket",
+                "splitItemTo": {
+                  "contents": "Alex",
+                  "tag": "SplitToUser"
+                }
+              },
+              {
+                "splitItemAmount": "22",
+                "splitItemDesc": "2x ticket",
+                "splitItemTo": {
+                  "contents": "Ilya",
+                  "tag": "SplitToUser"
+                }
+              }
+            ]
+          ],
+          "tag": "ItemizedSplit"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "74",
+        "purchaseDesc": "Restaurant Mozzafiato Aug-25",
+        "purchaseSplit": {
+          "contents": [
+            null,
+            [
+              {
+                "splitItemAmount": "50",
+                "splitItemDesc": "2/3 cheque",
+                "splitItemTo": {
+                  "contents": "Ilya",
+                  "tag": "SplitToUser"
+                }
+              },
+              {
+                "splitItemAmount": "24",
+                "splitItemDesc": "1/3 cheque",
+                "splitItemTo": {
+                  "contents": "Alex",
+                  "tag": "SplitToUser"
+                }
+              }
+            ]
+          ],
+          "tag": "ItemizedSplit"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "37",
+        "purchaseDesc": "Honest Greens Aug-25",
+        "purchaseSplit": {
+          "contents": [
+            null,
+            [
+              {
+                "splitItemAmount": "12",
+                "splitItemDesc": "1/3 cheque",
+                "splitItemTo": {
+                  "contents": "Alex",
+                  "tag": "SplitToUser"
+                }
+              },
+              {
+                "splitItemAmount": "25",
+                "splitItemDesc": "2/3 cheque",
+                "splitItemTo": {
+                  "contents": "Ilya",
+                  "tag": "SplitToUser"
+                }
+              }
+            ]
+          ],
+          "tag": "ItemizedSplit"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "87.5",
+        "purchaseDesc": "Cespa (gas statation) Aug-26",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "63",
+        "purchaseDesc": "Steak sandwitches Aug-26",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "34",
+        "purchaseDesc": "Rosie Cafe Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "9",
+        "purchaseDesc": "Pasteis + Cha Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "30",
+        "purchaseDesc": "Boat tours Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "15",
+        "purchaseDesc": "Pasteis de Bacalhau Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "14",
+        "purchaseDesc": "Teleferico de Gaia Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "45",
+        "purchaseDesc": "Shitty portuguese restaurant with fatty food Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "26.53",
+        "purchaseDesc": "Honest Greens Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "4.45",
+        "purchaseDesc": "Honest Greens Dessert Aug-27",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "45",
+        "purchaseDesc": "Floresta Cafe Aug-28",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "6",
+        "purchaseDesc": "Parking in Porto Aug-28",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "30",
+        "purchaseDesc": "Boat tickets in Aveiro Aug-28",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "2.75",
+        "purchaseDesc": "Parking in Aveiro Aug-28",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "3.75",
+        "purchaseDesc": "Pastel and tea at gas statation Aug-28",
+        "purchaseSplit": {
+          "contents": [
+            {
+              "contents": "Ilya",
+              "tag": "SplitToUser"
+            }
+          ],
+          "tag": "SplitEqually"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "52",
+        "purchaseDesc": "Nadi, Georgian Restaurant, Aug-28",
+        "purchaseSplit": {
+          "tag": "SplitEquallyAll"
+        },
+        "purchaseUser": "Alex"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "3.9",
+        "purchaseDesc": "Mu Gelato Italiano Aug-28",
+        "purchaseSplit": {
+          "contents": [
+            {
+              "contents": "Alex",
+              "tag": "SplitToUser"
+            }
+          ],
+          "tag": "SplitEqually"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    },
+    {
+      "contents": [
+        "Alex",
+        "Ilya",
+        "50"
+      ],
+      "tag": "PaymentAction"
+    },
+    {
+      "contents": {
+        "purchaseAmount": "6.76",
+        "purchaseDesc": "Bolt to Airport Aug-29",
+        "purchaseSplit": {
+          "contents": [
+            {
+              "contents": "Alex",
+              "tag": "SplitToUser"
+            }
+          ],
+          "tag": "SplitEqually"
+        },
+        "purchaseUser": "Ilya"
+      },
+      "tag": "PurchaseAction"
+    }
+  ],
+  "actionsGroups": [],
+  "actionsUsers": [
+    "Alex",
+    "Ilya"
+  ]
+}

@@ -247,17 +247,17 @@ dynToEvent
 dynToEvent dynWidget = switchHold never =<< dyn dynWidget
 
 data ActionType
-  = PurchaseSplitEquallyAllActionType
-  | PurchaseSplitEquallyActionType
-  | PurchaseItemizedSplitActionType
+  = ExpenseSplitEquallyAllActionType
+  | ExpenseSplitEquallyActionType
+  | ExpenseItemizedSplitActionType
   | PaymentTransactionActionType deriving (Eq, Ord, Show)
 
-actionToType (PurchaseAction (Purchase { purchaseSplit = SplitEquallyAll   }))
-  = PurchaseSplitEquallyAllActionType
-actionToType (PurchaseAction (Purchase { purchaseSplit = SplitEqually  _   }))
-  = PurchaseSplitEquallyActionType
-actionToType (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit _ _ }))
-  = PurchaseItemizedSplitActionType
+actionToType (ExpenseAction (Expense { expenseSplit = SplitEquallyAll   }))
+  = ExpenseSplitEquallyAllActionType
+actionToType (ExpenseAction (Expense { expenseSplit = SplitEqually  _   }))
+  = ExpenseSplitEquallyActionType
+actionToType (ExpenseAction (Expense { expenseSplit = ItemizedSplit _ _ }))
+  = ExpenseItemizedSplitActionType
 actionToType (PaymentAction _ _ _)
   = PaymentTransactionActionType
 
@@ -270,14 +270,14 @@ actionForm actionLabel currentAction users groups = do
   text "Choose action type: "
   dropdownEl
     <- dropdown
-       (maybe PurchaseSplitEquallyAllActionType actionToType currentAction)
+       (maybe ExpenseSplitEquallyAllActionType actionToType currentAction)
        ( constDyn
-         (    PurchaseSplitEquallyAllActionType
-              =: "Purchase Split Equally All"
-           <> PurchaseSplitEquallyActionType
-              =: "Purchase Split Equally"
-           <> PurchaseItemizedSplitActionType
-              =: "Purchase Itemized Split"
+         (    ExpenseSplitEquallyAllActionType
+              =: "Expense Split Equally to All"
+           <> ExpenseSplitEquallyActionType
+              =: "Expense Split Equally"
+           <> ExpenseItemizedSplitActionType
+              =: "Expense Itemized Split"
            <> PaymentTransactionActionType
               =: "Payment"
          )
@@ -287,21 +287,21 @@ actionForm actionLabel currentAction users groups = do
   unwrapEventWidget $ do
     actionType <- actionType
     return case actionType of
-      PurchaseSplitEquallyAllActionType
-        -> fmap (fmap PurchaseAction)
-           $ splitAllPurchaseForm
+      ExpenseSplitEquallyAllActionType
+        -> fmap (fmap ExpenseAction)
+           $ splitAllExpenseForm
              actionLabel
              currentAction
              users
-      PurchaseSplitEquallyActionType
-        -> fmap (fmap PurchaseAction)
-           $ splitEquallyPurchaseForm
+      ExpenseSplitEquallyActionType
+        -> fmap (fmap ExpenseAction)
+           $ splitEquallyExpenseForm
              actionLabel
              currentAction
              users
-      PurchaseItemizedSplitActionType
-        -> fmap (fmap PurchaseAction)
-           $ itemizedSplitPurchaseForm
+      ExpenseItemizedSplitActionType
+        -> fmap (fmap ExpenseAction)
+           $ itemizedSplitExpenseForm
              actionLabel
              currentAction
              users groups
@@ -361,27 +361,27 @@ amountInput currentAmount addEv = do
   el "br" blank
   return amount
 
-splitAllPurchaseForm
+splitAllExpenseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Text -> Maybe Action
   -> Dynamic t [User]
-  -> m (Event t Purchase)
-splitAllPurchaseForm actionLabel currentAction users = do
-  el "h3" . text $ actionLabel `T.append` " \"split all\" purchase"
+  -> m (Event t Expense)
+splitAllExpenseForm actionLabel currentAction users = do
+  el "h3" . text $ actionLabel `T.append` " \"split all\" expense"
   user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
     desc   <- descriptionInput
               (T.pack <$> (actionDesc =<< currentAction))
               addEv
     amount <- amountInput (actionAmount <$> currentAction) addEv
-    addEv  <- button $ actionLabel `T.append` " purchase"
-  let purchase
-        = Purchase
+    addEv  <- button $ actionLabel `T.append` " expense"
+  let expense
+        = Expense
         <$> user
         <*> fmap (T.unpack) desc
         <*> amount
         <*> pure SplitEquallyAll
-  return $ tagValid purchase addEv
+  return $ tagValid expense addEv
 
 selectUserItem
   :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
@@ -418,13 +418,13 @@ selectUsers idPrefix currentUsers users = do
   return . fmap (map snd . filter fst)
     $ (zip <$> selectedCbs <*> users)
 
-splitEquallyPurchaseForm
+splitEquallyExpenseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Text -> Maybe Action
   -> Dynamic t [User]
-  -> m (Event t Purchase)
-splitEquallyPurchaseForm actionLabel currentAction users = do
-  el "h3" . text $ actionLabel `T.append` " \"split equally\" purchase"
+  -> m (Event t Expense)
+splitEquallyExpenseForm actionLabel currentAction users = do
+  el "h3" . text $ actionLabel `T.append` " \"split equally\" expense"
   user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
     desc          <- descriptionInput
@@ -441,19 +441,19 @@ splitEquallyPurchaseForm actionLabel currentAction users = do
                 [] -> Left $ "At least one user must be selected for the "
                              `T.append` "\"split equally\" action"
                 us -> Right $ us
-    addEv         <- button $ actionLabel `T.append` " purchase"
+    addEv         <- button $ actionLabel `T.append` " expense"
     text " "
     -- The same reason to drop events as in addGroup
     dynText
       =<< errorDyn "" addEv
       =<< dropValidDynamic addEv (Left "") 2 selectedUsersValid
-  let purchase
-        = Purchase
+  let expense
+        = Expense
         <$> user
         <*> fmap (T.unpack) desc
         <*> amount
         <*> (SplitEqually . map SplitToUser <$> selectedUsersValid)
-  return $ tagValid purchase addEv
+  return $ tagValid expense addEv
 
 resettableDropdown
   :: forall t m k b
@@ -757,13 +757,13 @@ addTips submitEv currentTips users = do
       )
       $ maybeTipsPercentage
 
-itemizedSplitPurchaseForm
+itemizedSplitExpenseForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => Text -> Maybe Action
   -> Dynamic t [User] -> Dynamic t [Group]
-  -> m (Event t Purchase)
-itemizedSplitPurchaseForm actionLabel currentAction users groups = do
-  el "h3" . text $ actionLabel `T.append` " \"itemized split\" purchase"
+  -> m (Event t Expense)
+itemizedSplitExpenseForm actionLabel currentAction users groups = do
+  el "h3" . text $ actionLabel `T.append` " \"itemized split\" expense"
   user <- userInput "Payer" (actionDebitUser <$> currentAction) users
   rec
     desc       <- descriptionInput
@@ -781,14 +781,14 @@ itemizedSplitPurchaseForm actionLabel currentAction users groups = do
                   $ manageSplitItems
                     (actionSplitItems =<< currentAction)
                     tips users groups
-    addEv <- button $ actionLabel `T.append` " purchase"
-  let purchase
-        = Purchase
+    addEv <- button $ actionLabel `T.append` " expense"
+  let expense
+        = Expense
         <$> user
         <*> fmap (T.unpack) desc
         <*> assumeValidDynamic amount
         <*> ( ItemizedSplit <$> tips <*> assumeValidDynamic splitItems )
-  return $ tagValid purchase addEv
+  return $ tagValid expense addEv
 
 preselectedItemDropdown
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m, Ord k)
@@ -915,22 +915,22 @@ paymentTransactionForm actionLabel currentAction users groups = do
           firstUser secondUser users groups
 
 actionTextPayedFor
-    ( PurchaseAction
-      ( Purchase
-        { purchaseUser = purchaseUser
-        , purchaseDesc = purchaseDesc
-        , purchaseAmount = purchaseAmount
+    ( ExpenseAction
+      ( Expense
+        { expenseUser = expenseUser
+        , expenseDesc = expenseDesc
+        , expenseAmount = expenseAmount
         }
       )
     ) = do
-  text . T.pack $ purchaseUser
+  text . T.pack $ expenseUser
   text " payed "
-  text . T.pack . show $ purchaseAmount
+  text . T.pack . show $ expenseAmount
   text " for \""
-  text . T.pack $ purchaseDesc
+  text . T.pack $ expenseDesc
   text "\""
 actionTextPayedFor _
-  = error "actionTextPayedFor: only implemented for purchases so far"
+  = error "actionTextPayedFor: only implemented for expenses so far"
 
 actionLink :: DomBuilder t m => Text -> a -> m (Event t a)
 actionLink label item = do
@@ -940,28 +940,28 @@ actionLink label item = do
   return (item <$ domEvent Click el)  
 
 actionText
-    action@( PurchaseAction
-      ( Purchase { purchaseSplit = SplitEquallyAll } )
+    action@( ExpenseAction
+      ( Expense { expenseSplit = SplitEquallyAll } )
     ) = do
   actionTextPayedFor action
   text " split equally to all"
 actionText
-    action@( PurchaseAction
-      ( Purchase { purchaseSplit = SplitEqually [splitTo] } )
+    action@( ExpenseAction
+      ( Expense { expenseSplit = SplitEqually [splitTo] } )
     ) = do
   actionTextPayedFor action
   text " for "
   text . T.pack . printUsersList . splitToToUsers $ splitTo
 actionText
-    action@( PurchaseAction
-      ( Purchase { purchaseSplit = SplitEqually splitTos } )
+    action@( ExpenseAction
+      ( Expense { expenseSplit = SplitEqually splitTos } )
     ) = do
   actionTextPayedFor action
   text " split equally to "
   text . T.pack . printUsersList . splitTosUsers $ splitTos
 actionText
-    action@( PurchaseAction
-      ( Purchase { purchaseSplit = ItemizedSplit Nothing splits } )
+    action@( ExpenseAction
+      ( Expense { expenseSplit = ItemizedSplit Nothing splits } )
     ) = do
   actionTextPayedFor action
   text " split in "
@@ -969,8 +969,8 @@ actionText
   text " items"
   return ()
 actionText
-    action@( PurchaseAction
-      ( Purchase { purchaseSplit = ItemizedSplit (Just (Tips tips _)) splits } )
+    action@( ExpenseAction
+      ( Expense { expenseSplit = ItemizedSplit (Just (Tips tips _)) splits } )
     ) = do
   actionTextPayedFor action
   text " split in "

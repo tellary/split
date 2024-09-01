@@ -68,7 +68,7 @@ divAmounts d weights = reverse $ loop d weights []
       = loop (left - weightedPart) ws (weightedPart:result)
       where weightedPart = round2 $ w * part
 
-data TxReason = TxReasonPurchase Purchase | TxReasonPayment
+data TxReason = TxReasonExpense Expense | TxReasonPayment
   deriving (Show, Eq, Ord)
 
 data Transaction
@@ -139,30 +139,30 @@ data SplitItem
 instance FromJSON SplitItem
 instance ToJSON SplitItem
 
-data Purchase
-  = Purchase
-  { purchaseUser   :: User
-  , purchaseDesc   :: Desc
-  , purchaseAmount :: Amount
-  , purchaseSplit  :: Split
+data Expense
+  = Expense
+  { expenseUser   :: User
+  , expenseDesc   :: Desc
+  , expenseAmount :: Amount
+  , expenseSplit  :: Split
   } deriving (Generic, Show, Eq, Ord)
 
-instance FromJSON Purchase
-instance ToJSON Purchase
+instance FromJSON Expense
+instance ToJSON Expense
 
-purchaseSplitEquallyUsers (Purchase { purchaseSplit = SplitEqually splitTos })
+expenseSplitEquallyUsers (Expense { expenseSplit = SplitEqually splitTos })
   = Just . splitTosUsers $ splitTos
-purchaseSplitEquallyUsers _ = Nothing
+expenseSplitEquallyUsers _ = Nothing
 
-purchaseItemizedSplitUsers
-      (Purchase { purchaseSplit = itemizedSplit@(ItemizedSplit _ _)})
+expenseItemizedSplitUsers
+      (Expense { expenseSplit = itemizedSplit@(ItemizedSplit _ _)})
   = itemizedSplitUsers itemizedSplit
-purchaseItemizedSplitUsers _ = Nothing
+expenseItemizedSplitUsers _ = Nothing
 
-purchaseUsers p
-  = nub $ purchaseUser p : maybe [] id (purchaseSplitEquallyUsers p) ++ maybe [] id (purchaseItemizedSplitUsers p)
+expenseUsers p
+  = nub $ expenseUser p : maybe [] id (expenseSplitEquallyUsers p) ++ maybe [] id (expenseItemizedSplitUsers p)
 
-actionSplitEquallyUsers (PurchaseAction p) = purchaseSplitEquallyUsers p
+actionSplitEquallyUsers (ExpenseAction p) = expenseSplitEquallyUsers p
 actionSplitEquallyUsers _ = Nothing
 
 data SplitTo = SplitToUser User | SplitToGroup Group
@@ -216,7 +216,7 @@ tipsSplitEquallyUsers _ = Nothing
 data Split
   = SplitEqually [SplitTo]
   | SplitEquallyAll
-  -- TODO: Validate ItemizedSplit sum == purchaseAmount
+  -- TODO: Validate ItemizedSplit sum == expenseAmount
   | ItemizedSplit (Maybe Tips) [SplitItem]
   deriving (Generic, Show, Eq, Ord)
 
@@ -229,7 +229,7 @@ itemizedSplitUsers (ItemizedSplit tips splitItems)
     ++ maybe [] id (tipsSplitEquallyUsers =<< tips)
 itemizedSplitUsers _ = Nothing
 
-isUserPurchase user p = user `elem` purchaseUsers p
+isUserExpense user p = user `elem` expenseUsers p
 
 maybeSplitItems (ItemizedSplit _ items) = Just items
 maybeSplitItems  _                    = Nothing
@@ -247,7 +247,7 @@ splitUsers actions  SplitEquallyAll      = actionsUsers actions
 splitUsers _       (SplitEqually splitTos ) = splitTosUsers splitTos
 splitUsers _       (ItemizedSplit _ items) = splitItemsUsers $ items
 
-purchaseSplitUsers actions (Purchase { purchaseSplit = split })
+expenseSplitUsers actions (Expense { expenseSplit = split })
   = splitUsers actions split
 
 instance (Read a, Integral a) => FromJSON (DecimalRaw a) where
@@ -260,44 +260,44 @@ instance (Show a, Integral a) => ToJSON (DecimalRaw a) where
   toJSON = String . T.pack . show
 
 data Action
-  = PurchaseAction Purchase | PaymentAction User User Amount
+  = ExpenseAction Expense | PaymentAction User User Amount
   deriving (Generic, Eq, Show)
 
 instance FromJSON Action
 instance ToJSON Action
 
-actionDesc (PurchaseAction p) = Just (purchaseDesc p)
+actionDesc (ExpenseAction p) = Just (expenseDesc p)
 actionDesc (PaymentAction _ _ _) = Nothing
 
-actionDebitUser (PurchaseAction p) = purchaseUser p
+actionDebitUser (ExpenseAction p) = expenseUser p
 actionDebitUser (PaymentAction u _ _) = u
 
-actionAmount (PurchaseAction p) = purchaseAmount p
+actionAmount (ExpenseAction p) = expenseAmount p
 actionAmount (PaymentAction _ _ a) = a
 
-actionTips (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit tips _ }))
+actionTips (ExpenseAction (Expense { expenseSplit = ItemizedSplit tips _ }))
   = tips
 actionTips _
   = Nothing
 
 actionSplitItems
-    (PurchaseAction (Purchase { purchaseSplit = ItemizedSplit _ items }))
+    (ExpenseAction (Expense { expenseSplit = ItemizedSplit _ items }))
   = Just items
 actionSplitItems _
   = Nothing
 
 isUserAction user (PaymentAction u1 u2 _) = user == u1 || user == u2
-isUserAction user (PurchaseAction p) = isUserPurchase user p
+isUserAction user (ExpenseAction p) = isUserExpense user p
 
 isGroupSplitItem group (SplitItem { splitItemTo = SplitToGroup splitGroup })
   = group == splitGroup
 isGroupSplitItem _ _ = False
 
-isGroupPurchase group (Purchase { purchaseSplit = ItemizedSplit _ items })
+isGroupExpense group (Expense { expenseSplit = ItemizedSplit _ items })
   = any (isGroupSplitItem group) items
-isGroupPurchase _ _ = False
+isGroupExpense _ _ = False
 
-isGroupAction group (PurchaseAction p) = isGroupPurchase group p
+isGroupAction group (ExpenseAction p) = isGroupExpense group p
 isGroupAction _ _ = False
 
 data Actions
@@ -418,8 +418,8 @@ sumSplitAmountByTo groups
   . replaceUsersWithGroupsInSplitTos groups
 
 toTransactions :: Actions -> Action -> [Transaction]
-toTransactions (Actions _ groups _) (PurchaseAction
-                  purchase@(Purchase debitUser _ amount (SplitEqually splitTos)))
+toTransactions (Actions _ groups _) (ExpenseAction
+                  expense@(Expense debitUser _ amount (SplitEqually splitTos)))
   = collapseSameAccounts
   . filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
   . map (
@@ -428,7 +428,7 @@ toTransactions (Actions _ groups _) (PurchaseAction
         (userToAccount groupsByUsersVal debitUser)
         (splitToToAccount groupsByUsersVal splitTo)
         amount
-        (TxReasonPurchase purchase)
+        (TxReasonExpense expense)
     )
   $ zip
     splitTos
@@ -439,15 +439,15 @@ toTransactions (Actions _ groups _) (PurchaseAction
   where groupsByUsersVal = groupsByUsers groups
 toTransactions
   actions@(Actions users _ _)
-  (PurchaseAction
-    (Purchase debitUser desc amount SplitEquallyAll))
+  (ExpenseAction
+    (Expense debitUser desc amount SplitEquallyAll))
   = toTransactions actions
-    (PurchaseAction
-     (Purchase debitUser desc amount (SplitEqually (map SplitToUser users))))
+    (ExpenseAction
+     (Expense debitUser desc amount (SplitEqually (map SplitToUser users))))
 toTransactions
   (Actions users groups _)
-  (PurchaseAction
-    purchase@(Purchase debitUser _ _ (ItemizedSplit tips splitItems)))
+  (ExpenseAction
+    expense@(Expense debitUser _ _ (ItemizedSplit tips splitItems)))
   = filter (\tx -> txDebitAccount tx /= txCreditAccount tx)
     . map userSplitItemsToTx
     . map (\grp -> (fst . head $ grp, map snd grp))
@@ -464,7 +464,7 @@ toTransactions
         (userToAccount groupsByUsersVal debitUser)
         creditAccount
         (sum . map splitItemAmount $ userSplitItems)
-        (TxReasonPurchase purchase)
+        (TxReasonExpense expense)
     groupsByUsersVal = groupsByUsers groups
 toTransactions
   (Actions _ groups _)
@@ -544,9 +544,9 @@ printSummaryBySingleReason actions  acc reasonGroup
     b = balance acc txs
 -- printSummaryBySingleReason actions3 (GroupAccount ["Tasha","Ilya"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
 -- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
--- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
--- printSummaryBySingleReason actions3 (UserAccount "Aigiza") (TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonPurchase (Purchase "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
--- printSummaryBySingleReason actions1 (UserAccount "Ilya") (TxReasonPurchase (Purchase {purchaseUser = "Serge", purchaseDesc = "Salad", purchaseAmount = 14.05, purchaseSplit = SplitEqually ["Ilya"]}),[Transaction {txDebitAccount = UserAccount "Serge", txCreditAccount = UserAccount "Ilya", txAmount = 14.05, txReason = TxReasonPurchase (Purchase {purchaseUser = "Serge", purchaseDesc = "Salad", purchaseAmount = 14.05, purchaseSplit = SplitEqually ["Ilya"]})}])
+-- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
+-- printSummaryBySingleReason actions3 (UserAccount "Aigiza") (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Aigiza", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Aigiza"]))}])
+-- printSummaryBySingleReason actions1 (UserAccount "Ilya") (TxReasonExpense (Expense {expenseUser = "Serge", expenseDesc = "Salad", expenseAmount = 14.05, expenseSplit = SplitEqually ["Ilya"]}),[Transaction {txDebitAccount = UserAccount "Serge", txCreditAccount = UserAccount "Ilya", txAmount = 14.05, txReason = TxReasonExpense (Expense {expenseUser = "Serge", expenseDesc = "Salad", expenseAmount = 14.05, expenseSplit = SplitEqually ["Ilya"]})}])
 
 printSummaryBySingleReasonWasPayed _ acc balance (TxReasonPayment, txs)
   = printf "%s %s by %s"
@@ -554,18 +554,18 @@ printSummaryBySingleReasonWasPayed _ acc balance (TxReasonPayment, txs)
     ( show balance )
     ( printAccountList $ transactionsDebitAccounts txs )
 printSummaryBySingleReasonWasPayed
-      actions acc balance (TxReasonPurchase purchase, txs)
-  = case purchaseSplitUsers actions purchase of
+      actions acc balance (TxReasonExpense expense, txs)
+  = case expenseSplitUsers actions expense of
       [_] -> printf "%s %s for \"%s\" by %s"
              ( verbForm acc "pay" Past Passive Affirmative )
-             ( show $ purchaseAmount purchase )
-             ( purchaseDesc purchase )
+             ( show $ expenseAmount expense )
+             ( expenseDesc expense )
              ( printAccountList (transactionsDebitAccounts txs) )
       (_) -> printf "%s %s out of %s for \"%s\" by %s"
              ( verbForm acc "pay" Past Passive Affirmative )
              ( show balance )
-             ( show $ purchaseAmount purchase )
-             ( purchaseDesc purchase )
+             ( show $ expenseAmount expense )
+             ( expenseDesc expense )
              ( printAccountList (transactionsDebitAccounts txs) )
 
 printSummaryBySingleReasonPayed _ acc balance (TxReasonPayment, txs)
@@ -574,18 +574,18 @@ printSummaryBySingleReasonPayed _ acc balance (TxReasonPayment, txs)
     ( show . abs $ balance )
     ( printAccountList $ transactionsCreditAccounts txs )
 printSummaryBySingleReasonPayed
-      actions acc balance (TxReasonPurchase purchase, txs)
-  = case purchaseSplitUsers actions purchase of
+      actions acc balance (TxReasonExpense expense, txs)
+  = case expenseSplitUsers actions expense of
       [_] -> printf "%s %s for \"%s\" for %s"
              ( verbForm acc "pay" Past Active Affirmative )
-             ( show $ purchaseAmount purchase )
-             ( purchaseDesc purchase )
+             ( show $ expenseAmount expense )
+             ( expenseDesc expense )
              ( printAccountList (transactionsCreditAccounts txs) )
       (_) -> printf "%s %s out of %s for \"%s\" for %s"
              ( verbForm acc "pay" Past Active Affirmative )
              ( show . abs $ balance )
-             ( show $ purchaseAmount purchase )
-             ( purchaseDesc purchase )
+             ( show $ expenseAmount expense )
+             ( expenseDesc expense )
              ( printAccountList (transactionsCreditAccounts txs) )
 
 decreaseBalance balances
@@ -724,12 +724,12 @@ printAmount :: Transaction -> String
 printAmount
       ( Transaction
         { txAmount = amount
-        , txReason = TxReasonPurchase
-                     (Purchase _ _ purchaseAmount _)
+        , txReason = TxReasonExpense
+                     (Expense _ _ expenseAmount _)
         }
       )
-  | amount == purchaseAmount = show amount
-  | otherwise = printf "%s out of %s" (show amount) (show purchaseAmount)
+  | amount == expenseAmount = show amount
+  | otherwise = printf "%s out of %s" (show amount) (show expenseAmount)
 printAmount
       ( Transaction
         { txAmount = amount
@@ -741,15 +741,15 @@ printAmount
 printTransaction :: Transaction -> String
 printTransaction
       tx@( Transaction
-           { txReason = TxReasonPurchase
-                        (Purchase _ purchaseDesc _ _)
+           { txReason = TxReasonExpense
+                        (Expense _ expenseDesc _ _)
            }
          )
   = printf "%s payed %s for %s for %s"
     (printAccount . txDebitAccount $ tx)
     (printAmount tx)
     (printAccount . txCreditAccount $ tx)
-    purchaseDesc
+    expenseDesc
 printTransaction tx@( Transaction { txReason = TxReasonPayment } )
   = printf "%s payed %s to %s"
     (printAccount . txDebitAccount $ tx)
@@ -843,16 +843,16 @@ users1 = ["Serge", "Sasha", "Pasha", "Ilya", "Tasha", "Kolya", "Alena", "Dima"]
 
 actions1
   = Actions users1 [["Dima", "Alena"], ["Sasha", "Pasha"]]
-    [ PurchaseAction (Purchase "Serge" "Pizza"
+    [ ExpenseAction (Expense "Serge" "Pizza"
                       100.25 SplitEquallyAll)
-    , PurchaseAction (Purchase "Serge" "Salad"
+    , ExpenseAction (Expense "Serge" "Salad"
                       14.05 (SplitEqually [SplitToUser "Ilya"]))
-    , PurchaseAction (Purchase "Dima"  "Cheese and wine"
+    , ExpenseAction (Expense "Dima"  "Cheese and wine"
                       21.64  SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya"  "Berries"
+    , ExpenseAction (Expense "Ilya"  "Berries"
                       14     SplitEquallyAll)
-    , PurchaseAction
-      ( Purchase "Ilya" "Glasses" 24
+    , ExpenseAction
+      ( Expense "Ilya" "Glasses" 24
         ( SplitEqually
           [ SplitToUser "Ilya"
           , SplitToUser "Kolya"
@@ -890,13 +890,13 @@ printDimaReport1
 users2 = ["Tasha", "Ilya", "Alena", "Niki", "Dmitry", "Serge"]
 actions2
   = Actions users2 [["Dmitry", "Alena"]]
-    [ PurchaseAction (Purchase "Tasha" "Printing faces"
+    [ ExpenseAction (Expense "Tasha" "Printing faces"
                       9     SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya"  "Keyboard"
+    , ExpenseAction (Expense "Ilya"  "Keyboard"
                       140   SplitEquallyAll)
-    , PurchaseAction (Purchase "Alena" "Baking hardware"
+    , ExpenseAction (Expense "Alena" "Baking hardware"
                       9.6   SplitEquallyAll)
-    , PurchaseAction (Purchase "Alena" "Baking groceries"
+    , ExpenseAction (Expense "Alena" "Baking groceries"
                       13.75 SplitEquallyAll)
     ]
 
@@ -920,18 +920,18 @@ actions3
   = Actions users3 [["Dima", "Alena"], ["Tasha", "Ilya"]]
     [ -- USD/EUR = 0.9211 as of May 25th, 478.40*0.9211 = 440.65
       -- But Alena thinks it's 442: 176.8*5/2
-      PurchaseAction
-      ( Purchase "Ilya" "AirBnb" 442 SplitEquallyAll )
-    , PurchaseAction (Purchase "Ilya" "Pingo Doce in Óbidos"
+      ExpenseAction
+      ( Expense "Ilya" "AirBnb" 442 SplitEquallyAll )
+    , ExpenseAction (Expense "Ilya" "Pingo Doce in Óbidos"
                       178.47   SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya" "Gasoline"
+    , ExpenseAction (Expense "Ilya" "Gasoline"
                       58.83    SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya" "Road tolls"
+    , ExpenseAction (Expense "Ilya" "Road tolls"
                       (2*13.8) SplitEquallyAll)
-    , PurchaseAction (Purchase "Ilya" "Pingo Doce in Coimbra"
+    , ExpenseAction (Expense "Ilya" "Pingo Doce in Coimbra"
                       41.86    SplitEquallyAll)
-    , PurchaseAction
-      ( Purchase "Dima" "Padaria Flor de Aveiro"
+    , ExpenseAction
+      ( Expense "Dima" "Padaria Flor de Aveiro"
         19.45
         ( SplitEqually
           [ SplitToUser "Dima"
@@ -940,13 +940,13 @@ actions3
           ]
         )
       )
-    , PurchaseAction (Purchase "Ilya" "Cafe Papa in Coimbra"
+    , ExpenseAction (Expense "Ilya" "Cafe Papa in Coimbra"
                       77.5     SplitEquallyAll)
-    , PurchaseAction (Purchase "Aigiza" "Cafe Trazarte in Óbidos"
+    , ExpenseAction (Expense "Aigiza" "Cafe Trazarte in Óbidos"
                       65.4     SplitEquallyAll)
-    , PurchaseAction (Purchase "Dima" "Large Ginjinha"
+    , ExpenseAction (Expense "Dima" "Large Ginjinha"
                       17       SplitEquallyAll)
-    , PurchaseAction (Purchase "Dima" "Two small Ginjinhas"
+    , ExpenseAction (Expense "Dima" "Two small Ginjinhas"
                       8       (SplitEqually [SplitToUser "Aigiza"]))
     , PaymentAction "Dima" "Ilya" (200 - 12.44)
     ]
@@ -984,19 +984,19 @@ berriesSplit4
 
 actions4
   = Actions users4 [["Dima", "Alena"], ["Tasha", "Ilya"]]
-    [ PurchaseAction (Purchase "Ilya" "PILS" 181 SplitEquallyAll )
-    , PurchaseAction
-      ( Purchase "Ilya" "Berries" 63 berriesSplit4 )
-    , PurchaseAction
-      ( Purchase "Dima" "Andrey Sakhov, MB Way on 15-07-2024" 140
+    [ ExpenseAction (Expense "Ilya" "PILS" 181 SplitEquallyAll )
+    , ExpenseAction
+      ( Expense "Ilya" "Berries" 63 berriesSplit4 )
+    , ExpenseAction
+      ( Expense "Dima" "Andrey Sakhov, MB Way on 15-07-2024" 140
         (SplitEqually [SplitToGroup ["Tasha", "Ilya"]])
       )
-    , PurchaseAction
-      ( Purchase "Dima" "W Padel, MB Way on 04-07-2024" 31
+    , ExpenseAction
+      ( Expense "Dima" "W Padel, MB Way on 04-07-2024" 31
         (SplitEqually [SplitToUser "Ilya"])
       )
-    , PurchaseAction
-      ( Purchase "Alena" "Berries in June" 9.5
+    , ExpenseAction
+      ( Expense "Alena" "Berries in June" 9.5
         ( ItemizedSplit Nothing
           [ SplitItem (SplitToUser "Ilya") "1kg strawberry" 3.5
           , SplitItem (SplitToUser "Ilya") "1kg raspberry" 6
@@ -1014,10 +1014,10 @@ printReport4 = putStrLn $ printReport nullify4 actions4
 
 actions5
   = Actions
-    ["Dima", "Alena F.", "Tasha", "Ilya", "Vlad", "Alena L.", "Unknown"]
+    ["Dima", "Alena F.", "Tasha", "Ilya", "Vlad", "Alena L."]
     [["Dima", "Alena F."], ["Tasha", "Ilya"], ["Vlad", "Alena L."]]
-    [ PurchaseAction
-      ( Purchase "Ilya" "Oysters & Margarita" 194.7
+    [ ExpenseAction
+      ( Expense "Ilya" "Oysters & Margarita" 194.7
         ( ItemizedSplit (Just (Tips 10 RelativeSplitTips))
           [ SplitItem
             ( SplitToGroup ["Tasha", "Ilya"] )
@@ -1087,7 +1087,7 @@ actions5
         )
       )
     ]
--- λ> sum . map splitItemAmount . fromJust . maybeSplitItems . purchaseSplit . head . fromJust . sequence $ maybePurchase <$> actionsArr actions5
+-- λ> sum . map splitItemAmount . fromJust . maybeSplitItems . expenseSplit . head . fromJust . sequence $ maybeExpense <$> actionsArr actions5
 -- 177.0
 
 nullify5 = nullifyBalances . actionsToTransactions $ actions5
@@ -1105,8 +1105,8 @@ actions6
     = [["Dima", "Alena F."], ["Tasha", "Ilya"], ["Vlad", "Alena L."]]
   , actionsArr =
       actionsArr actions5 ++
-      [ PurchaseAction
-        ( Purchase "Dima" "Crouton" (1.1*172.5)
+      [ ExpenseAction
+        ( Expense "Dima" "Crouton" (1.1*172.5)
           ( ItemizedSplit (Just (Tips 10 RelativeSplitTips))
             [ SplitItem
               ( SplitToGroup ["Dima", "Alena F."] )
