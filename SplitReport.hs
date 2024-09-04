@@ -26,13 +26,13 @@ import           MoneySplit          (Account, Actions (Actions), Amount,
                                                    txDebitAccount),
                                       TxReason (TxReasonExpense,
                                                 TxReasonPayment),
-                                      Voice (Active, Passive), accountUsers,
+                                      Voice (Active), accountUsers,
                                       actionsAccounts, addTips, balance,
                                       creditAccountTransactions,
                                       debitAccountTransactions,
                                       groupTransactionsByReason, groupsByUsers,
                                       printAccount, printAccountList,
-                                      printAccountStatusOwedBy,
+                                      printAccountStatusGetsBackFrom,
                                       printAccountStatusOwesTo,
                                       printSummaryBySingleReason,
                                       printUsersList, splitItemUsers,
@@ -61,17 +61,17 @@ reportAccountStatusOwesTo acc balance txs = do
           ( printAccount . txCreditAccount $ tx )
 
 reportAccountStatusOwedBy acc balance [tx]
-  = text . T.pack $ printAccountStatusOwedBy acc balance [tx]
+  = text . T.pack $ printAccountStatusGetsBackFrom acc balance [tx]
 reportAccountStatusOwedBy acc balance txs = do
   text . T.pack
-    $ printf "%s %s %s"
+    $ printf "%s %s back %s"
       ( printAccount acc )
-      ( verbForm acc "owe" Present Passive Affirmative )
+      ( verbForm acc "get" Present Active Affirmative )
       ( show balance )
   el "ul" $ do
     forM_ txs $ \tx -> do
       el "li" . text . T.pack
-        $ printf "%s by %s"
+        $ printf "%s from %s"
           ( show . txAmount $ tx )
           ( printAccount . txDebitAccount $ tx )
 

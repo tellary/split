@@ -637,29 +637,31 @@ data GramiticTime = Present | Past deriving Show
 data Voice = Active | Passive deriving Show
 data Negation = Affirmative | Negative deriving Show
 
-verbForm  acc             "owe" tense   Passive Affirmative
+verbForm  acc             "owe"  tense   Passive Affirmative
   = verbForm acc "ow" tense Passive Affirmative
-verbForm (UserAccount _)  "do"  _       Active  Negative = "doesn't"
-verbForm (GroupAccount _) "do"  _       Active  Negative = "don't"
-verbForm (UserAccount _)  verb  Present Active  Affirmative
+verbForm (UserAccount _)  "do"   _       Active  Negative = "doesn't"
+verbForm (GroupAccount _) "do"   _       Active  Negative = "don't"
+verbForm (UserAccount _)  "lend" Past    Active  Affirmative = "lent"
+verbForm (GroupAccount _) "lend" Past    Active  Affirmative = "lent"
+verbForm (UserAccount _)  verb   Present Active  Affirmative
   = verb ++ "s"
-verbForm (GroupAccount _) verb  Present Active  Affirmative
+verbForm (GroupAccount _) verb   Present Active  Affirmative
   = verb
-verbForm (UserAccount _)  verb  Present Active  Negative
+verbForm (UserAccount _)  verb   Present Active  Negative
   = "is " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb  Present Active  Negative
+verbForm (GroupAccount _) verb   Present Active  Negative
   = "are " ++ verb ++ "ed"
-verbForm (UserAccount _)  verb  Present Passive Affirmative
+verbForm (UserAccount _)  verb   Present Passive Affirmative
   = "is " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb  Present Passive Affirmative
+verbForm (GroupAccount _) verb   Present Passive Affirmative
   = "are " ++ verb ++ "ed"
-verbForm (UserAccount _)  verb  Past    Active  Affirmative
+verbForm (UserAccount _)  verb   Past    Active  Affirmative
   = verb ++ "ed"
-verbForm (GroupAccount _) verb  Past    Active  Affirmative
+verbForm (GroupAccount _) verb   Past    Active  Affirmative
   = verb ++ "ed"
-verbForm (UserAccount _)  verb  Past    Passive Affirmative
+verbForm (UserAccount _)  verb   Past    Passive Affirmative
   = "was " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb  Past    Passive Affirmative
+verbForm (GroupAccount _) verb   Past    Passive Affirmative
   = "were " ++ verb ++ "ed"
 verbForm _ verb tense active affirmative
   = error
@@ -686,20 +688,20 @@ printAccountStatusOwesTo acc balance txs
       $ txs
     )
 
-printAccountStatusOwedBy acc _ [tx]
-  = printf "%s %s %s by %s"
+printAccountStatusGetsBackFrom acc _ [tx]
+  = printf "%s %s back %s from %s"
     ( printAccount acc )
-    ( verbForm acc "owe" Present Passive Affirmative )
+    ( verbForm acc "get" Present Active Affirmative )
     ( show . txAmount $ tx )
     ( printAccount . txDebitAccount $ tx )
-printAccountStatusOwedBy acc balance txs
-  = printf "%s %s %s\n\n%s"
+printAccountStatusGetsBackFrom acc balance txs
+  = printf "%s %s back %s\n\n%s"
     ( printAccount acc )
-    ( verbForm acc "owe" Present Passive Affirmative )
+    ( verbForm acc "get" Present Active Affirmative )
     ( show balance )
     ( intercalate "\n"
       . map
-        (\tx -> printf "- %s by %s"
+        (\tx -> printf "- %s from %s"
                 (show . txAmount $ tx)
                 (printAccount . txDebitAccount $ tx)
         )
@@ -717,7 +719,7 @@ printAccountStatus acc []
     (verbForm acc "do" Present Active Negative)
 printAccountStatus acc txs
   | b < 0     = printAccountStatusOwesTo acc b txs
-  | otherwise = printAccountStatusOwedBy acc b txs
+  | otherwise = printAccountStatusGetsBackFrom acc b txs
   where b = balance acc txs
 
 printAmount :: Transaction -> String
