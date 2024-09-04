@@ -936,7 +936,8 @@ actions3
         ( SplitEqually
           [ SplitToUser "Dima"
           , SplitToUser "Alena"
-          , SplitToGroup ["Tasha", "Ilya"]
+          , SplitToUser "Tasha"
+          , SplitToUser "Ilya"
           ]
         )
       )
