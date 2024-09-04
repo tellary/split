@@ -31,7 +31,7 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              assumeValidValue, dropValidDynamic,
                                              errorDyn, errorWidget, fromDynamic,
                                              fromDynamicEither, fromEvent,
-                                             tagValid,
+                                             tagPromptlyValid, tagValid,
                                              unwrapValidDynamicDynamicWidget,
                                              unwrapValidDynamicWidget)
 
@@ -47,7 +47,7 @@ resettableInput submitEvent validation = do
     let validInput :: ValidDynamic t Text b
           = fromDynamic (value $ input) validation 
     let ev :: Event t b
-          = tagValid validInput submitOrEnterEv
+          = tagPromptlyValid validInput submitOrEnterEv
   return (ev, validInput)
 
 manageUsers
@@ -73,7 +73,7 @@ manageUsers users0 actions = do
               addUserButtonEv <- button "Add user"
               text " "
               dynText =<< (errorDyn "" addUserButtonEv $ userInput)
-              return $ tagValid userInput ev
+              return $ tagPromptlyValid userInput ev
         return widget
     addUserEv <- switchHold never =<< dyn addUserEvDyn
     users :: Dynamic t [User] <-
@@ -137,7 +137,7 @@ userListItem actions user = el "li" $ do
       text . T.pack
         $ printf "Can't delete user '%s' referenced in group: %s"
             user (printUsersList group)
-  return $ tagValid deleteUserValid deleteUserEv
+  return $ tagPromptlyValid deleteUserValid deleteUserEv
 
 addGroup
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -156,7 +156,7 @@ addGroup users groups = mdo
                      `T.append` "At least 2 users necessary for a group"
               gs  -> Right $ gs
   addGroupButtonEv <- button "Add group"
-  let addGroupEv = tagValid newGroupUsersValid addGroupButtonEv
+  let addGroupEv = tagPromptlyValid newGroupUsersValid addGroupButtonEv
   dynText
     =<< errorDyn "" addGroupButtonEv
     -- 'selectUsers' generates 2 unnecessary updates
@@ -190,7 +190,7 @@ groupListItem actions group = el "li" $ do
           (printUsersList group)
       actionText action
       return ()
-  return $ tagValid deleteGroupValid deleteGroupEv
+  return $ tagPromptlyValid deleteGroupValid deleteGroupEv
 
 manageGroups
   :: forall t m . (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -381,7 +381,7 @@ splitAllExpenseForm actionLabel currentAction users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> pure SplitEquallyAll
-  return $ tagValid expense addEv
+  return $ tagPromptlyValid expense addEv
 
 selectUserItem
   :: forall t m . (DomBuilder t m, PostBuild t m, MonadHold t m, MonadFix m)
@@ -453,7 +453,7 @@ splitEquallyExpenseForm actionLabel currentAction users = do
         <*> fmap (T.unpack) desc
         <*> amount
         <*> (SplitEqually . map SplitToUser <$> selectedUsersValid)
-  return $ tagValid expense addEv
+  return $ tagPromptlyValid expense addEv
 
 resettableDropdown
   :: forall t m k b
@@ -515,7 +515,7 @@ addSplitItem firstUser users groups = do
         <$> assumeValidDynamic splitTo
         <*> fmap (T.unpack) desc
         <*> amount
-  return $ tagValid splitItem addEv
+  return $ tagPromptlyValid splitItem addEv
 
 moveUp ix item m = m3
   where
@@ -897,7 +897,7 @@ paymentTransactionForm0 actionLabel currentAction
           <$> assumeValidDynamic debitUser
           <*> assumeValidDynamic creditUser
           <*> amount
-  return $ tagValid action addEv
+  return $ tagPromptlyValid action addEv
 
 paymentTransactionForm
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
