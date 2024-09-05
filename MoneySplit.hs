@@ -30,6 +30,9 @@ data Account = UserAccount User | GroupAccount Group deriving (Show, Eq, Ord)
 type DebitAccount = Account
 type CreditAccount = Account
 
+accountPlurality (UserAccount _) = Single
+accountPlurality (GroupAccount _) = Plural
+
 findUserNotInTheSameGroup :: [User] -> [Group] -> User -> Maybe User
 findUserNotInTheSameGroup users groups currentUser
   = case group of
@@ -104,9 +107,13 @@ transactionAccountsDirectionalArr (Transaction debitAccount creditAccount _ _)
 transactionAccounts tx
   = let [a1, a2] = sort . transactionAccountsDirectionalArr $ tx
     in (a1, a2)
+transactionsAccounts :: (Transaction -> [Account]) -> [Transaction] -> [Account]
 transactionsAccounts accF = map head . group . sort . concat .  map accF
+transactionsAllAccounts :: [Transaction] -> [Account]
 transactionsAllAccounts = transactionsAccounts transactionAccountsDirectionalArr
+transactionsDebitAccounts :: [Transaction] -> [DebitAccount]
 transactionsDebitAccounts = transactionsAccounts (pure . txDebitAccount)
+transactionsCreditAccounts :: [Transaction] -> [CreditAccount]
 transactionsCreditAccounts = transactionsAccounts (pure . txCreditAccount)
 
 twoAccounts :: [Transaction] -> (Account, Account)
@@ -525,22 +532,32 @@ capitaize (c:cs) = toUpper c:cs
 printAccountBalance acc txs
   = printf "%s %s %s"
     ( printAccount acc )
-    ( verbForm acc "owe" Present voice Affirmative )
+    ( verbForm (accountPlurality acc) "owe" Present voice Affirmative )
     ( show . abs $ b )
   where
     b     = balance acc txs
     voice = if b < 0 then Active else Passive
 
-printSummaryBySingleReason
+printSingleReasonSummary
   :: Actions -> Account -> (TxReason, [Transaction]) -> Maybe String
-printSummaryBySingleReason actions  acc reasonGroup
+printSingleReasonSummary actions acc (reason, txs)
   | b > 0
-  = Just $ printSummaryBySingleReasonWasPayed actions acc b reasonGroup
+  = Just
+    $ printSingleReasonPayedTo
+      actions
+      (accountsUsersList (transactionsDebitAccounts txs))
+      (accountUsers acc)
+      b
+      reason
   | b < 0
-  = Just $ printSummaryBySingleReasonPayed    actions acc b reasonGroup
+  = Just
+    $ printSingleReasonPayedTo
+      actions
+      (accountUsers acc)
+      (accountsUsersList (transactionsCreditAccounts txs))
+      b reason
   | otherwise = Nothing
   where
-    txs = snd reasonGroup
     b = balance acc txs
 -- printSummaryBySingleReason actions3 (GroupAccount ["Tasha","Ilya"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
 -- printSummaryBySingleReason actions3 (GroupAccount ["Dima","Alena"]) (TxReasonPayment,[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 187.56, txReason = TxReasonPayment}])
@@ -548,45 +565,30 @@ printSummaryBySingleReason actions  acc reasonGroup
 -- printSummaryBySingleReason actions3 (UserAccount "Alice") (TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"])),[Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = UserAccount "Alice", txAmount = 3.4, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"]))},Transaction {txDebitAccount = GroupAccount ["Dima","Alena"], txCreditAccount = GroupAccount ["Tasha","Ilya"], txAmount = 6.8, txReason = TxReasonExpense (Expense "Dima" "Large Ginjinha" 17 (SplitEqually ["Tasha","Ilya","Alena","Dima","Alice"]))}])
 -- printSummaryBySingleReason actions1 (UserAccount "Ilya") (TxReasonExpense (Expense {expenseUser = "Serge", expenseDesc = "Salad", expenseAmount = 14.05, expenseSplit = SplitEqually ["Ilya"]}),[Transaction {txDebitAccount = UserAccount "Serge", txCreditAccount = UserAccount "Ilya", txAmount = 14.05, txReason = TxReasonExpense (Expense {expenseUser = "Serge", expenseDesc = "Salad", expenseAmount = 14.05, expenseSplit = SplitEqually ["Ilya"]})}])
 
-printSummaryBySingleReasonWasPayed _ acc balance (TxReasonPayment, txs)
-  = printf "%s %s by %s"
-    ( verbForm acc "pay" Past Passive Affirmative )
-    ( show balance )
-    ( printAccountList $ transactionsDebitAccounts txs )
-printSummaryBySingleReasonWasPayed
-      actions acc balance (TxReasonExpense expense, txs)
-  = case expenseSplitUsers actions expense of
-      [_] -> printf "%s %s for \"%s\" by %s"
-             ( verbForm acc "pay" Past Passive Affirmative )
-             ( show $ expenseAmount expense )
-             ( expenseDesc expense )
-             ( printAccountList (transactionsDebitAccounts txs) )
-      (_) -> printf "%s %s out of %s for \"%s\" by %s"
-             ( verbForm acc "pay" Past Passive Affirmative )
-             ( show balance )
-             ( show $ expenseAmount expense )
-             ( expenseDesc expense )
-             ( printAccountList (transactionsDebitAccounts txs) )
-
-printSummaryBySingleReasonPayed _ acc balance (TxReasonPayment, txs)
-  = printf "%s %s to %s"
-    ( verbForm acc "pay" Past Active Affirmative )
+printSingleReasonPayedTo :: Actions -> [User] -> [User] -> Amount -> TxReason -> String
+printSingleReasonPayedTo
+      _ payerUsers payeeUsers balance TxReasonPayment
+  = printf "%s %s %s to %s"
+    ( printUsersList payerUsers )
+    ( verbForm (listPlurality payerUsers) "pay" Past Active Affirmative )
     ( show . abs $ balance )
-    ( printAccountList $ transactionsCreditAccounts txs )
-printSummaryBySingleReasonPayed
-      actions acc balance (TxReasonExpense expense, txs)
+    ( printUsersList payeeUsers )
+printSingleReasonPayedTo
+      actions payerUsers payeeUsers balance (TxReasonExpense expense)
   = case expenseSplitUsers actions expense of
-      [_] -> printf "%s %s for \"%s\" for %s"
-             ( verbForm acc "pay" Past Active Affirmative )
+      [_] -> printf "%s %s %s for \"%s\" for %s"
+             ( printUsersList payerUsers )
+             ( verbForm (listPlurality payerUsers) "pay" Past Active Affirmative )
              ( show $ expenseAmount expense )
              ( expenseDesc expense )
-             ( printAccountList (transactionsCreditAccounts txs) )
-      (_) -> printf "%s %s out of %s for \"%s\" for %s"
-             ( verbForm acc "pay" Past Active Affirmative )
+             ( printUsersList payeeUsers )
+      (_) -> printf "%s %s %s out of %s for \"%s\" for %s"
+             ( printUsersList payerUsers )
+             ( verbForm (listPlurality payerUsers) "pay" Past Active Affirmative )
              ( show . abs $ balance )
              ( show $ expenseAmount expense )
              ( expenseDesc expense )
-             ( printAccountList (transactionsCreditAccounts txs) )
+             ( printUsersList payeeUsers )
 
 decreaseBalance balances
   = case (asc, desc) of
@@ -624,44 +626,52 @@ printUsersList users
                 (intercalate ", " $ init users)
                 (last users)
 
+accountsUsersList :: [Account] -> [User]
+accountsUsersList = concat . map accountUsers
+
 printAccountList :: [Account] -> String
 printAccountList accs
   = printUsersList users
   where
-    users :: [String] = concat . map accountUsers $ accs
+    users :: [String] = accountsUsersList accs
 -- printAccountList [(UserAccount "Alice"), (GroupAccount ["Dima", "Alena"])]
 -- printAccountList [(UserAccount "Alice")]
 -- printAccountList [(GroupAccount ["Dima", "Alena"])]
 
+data Plurality = Single | Plural
 data GramiticTime = Present | Past deriving Show
 data Voice = Active | Passive deriving Show
 data Negation = Affirmative | Negative deriving Show
 
-verbForm  acc             "owe"  tense   Passive Affirmative
-  = verbForm acc "ow" tense Passive Affirmative
-verbForm (UserAccount _)  "do"   _       Active  Negative = "doesn't"
-verbForm (GroupAccount _) "do"   _       Active  Negative = "don't"
-verbForm (UserAccount _)  "lend" Past    Active  Affirmative = "lent"
-verbForm (GroupAccount _) "lend" Past    Active  Affirmative = "lent"
-verbForm (UserAccount _)  verb   Present Active  Affirmative
+listPlurality [] = error "listPlurality: empty list"
+listPlurality [_] = Single
+listPlurality (_:_:_) = Plural
+
+verbForm plurality              "owe"  tense   Passive Affirmative
+  = verbForm plurality "ow" tense Passive Affirmative
+verbForm Single  "do"   _       Active  Negative = "doesn't"
+verbForm Plural "do"   _       Active  Negative = "don't"
+verbForm Single  "lend" Past    Active  Affirmative = "lent"
+verbForm Plural "lend" Past    Active  Affirmative = "lent"
+verbForm Single  verb   Present Active  Affirmative
   = verb ++ "s"
-verbForm (GroupAccount _) verb   Present Active  Affirmative
+verbForm Plural verb   Present Active  Affirmative
   = verb
-verbForm (UserAccount _)  verb   Present Active  Negative
+verbForm Single  verb   Present Active  Negative
   = "is " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb   Present Active  Negative
+verbForm Plural verb   Present Active  Negative
   = "are " ++ verb ++ "ed"
-verbForm (UserAccount _)  verb   Present Passive Affirmative
+verbForm Single  verb   Present Passive Affirmative
   = "is " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb   Present Passive Affirmative
+verbForm Plural verb   Present Passive Affirmative
   = "are " ++ verb ++ "ed"
-verbForm (UserAccount _)  verb   Past    Active  Affirmative
+verbForm Single  verb   Past    Active  Affirmative
   = verb ++ "ed"
-verbForm (GroupAccount _) verb   Past    Active  Affirmative
+verbForm Plural verb   Past    Active  Affirmative
   = verb ++ "ed"
-verbForm (UserAccount _)  verb   Past    Passive Affirmative
+verbForm Single  verb   Past    Passive Affirmative
   = "was " ++ verb ++ "ed"
-verbForm (GroupAccount _) verb   Past    Passive Affirmative
+verbForm Plural verb   Past    Passive Affirmative
   = "were " ++ verb ++ "ed"
 verbForm _ verb tense active affirmative
   = error
@@ -671,13 +681,13 @@ verbForm _ verb tense active affirmative
 printAccountStatusOwesTo acc _ [tx]
   = printf "%s %s %s to %s"
     ( printAccount acc )
-    ( verbForm acc "owe" Present Active Affirmative )
+    ( verbForm (accountPlurality acc) "owe" Present Active Affirmative )
     ( show . txAmount $ tx )
     ( printAccount . txCreditAccount $ tx )
 printAccountStatusOwesTo acc balance txs
   = printf "%s %s %s\n\n%s"
     ( printAccount acc)
-    ( verbForm acc "owe" Present Active Affirmative )
+    ( verbForm (accountPlurality acc) "owe" Present Active Affirmative )
     ( show . abs $ balance )
     ( intercalate "\n"
       . map
@@ -691,13 +701,13 @@ printAccountStatusOwesTo acc balance txs
 printAccountStatusGetsBackFrom acc _ [tx]
   = printf "%s %s back %s from %s"
     ( printAccount acc )
-    ( verbForm acc "get" Present Active Affirmative )
+    ( verbForm (accountPlurality acc) "get" Present Active Affirmative )
     ( show . txAmount $ tx )
     ( printAccount . txDebitAccount $ tx )
 printAccountStatusGetsBackFrom acc balance txs
   = printf "%s %s back %s\n\n%s"
     ( printAccount acc )
-    ( verbForm acc "get" Present Active Affirmative )
+    ( verbForm (accountPlurality acc) "get" Present Active Affirmative )
     ( show balance )
     ( intercalate "\n"
       . map
@@ -716,7 +726,7 @@ printAccountStatus :: Account -> [Transaction] -> String
 printAccountStatus acc []
   = printf "%s %s owe anything"
     (printAccount acc)
-    (verbForm acc "do" Present Active Negative)
+    (verbForm (accountPlurality acc) "do" Present Active Negative)
 printAccountStatus acc txs
   | b < 0     = printAccountStatusOwesTo acc b txs
   | otherwise = printAccountStatusGetsBackFrom acc b txs
@@ -791,7 +801,7 @@ printAccountWasPayed :: Account -> [Transaction] -> String
 printAccountWasPayed acc txs
   = printf "%s %s %s\n\n%s"
     (printAccount acc)
-    (verbForm acc "pay" Past Passive Affirmative)
+    (verbForm (accountPlurality acc) "pay" Past Passive Affirmative)
     (show . sum . map txAmount $ txs)
     (printTransactions txs)
 

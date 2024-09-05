@@ -26,21 +26,20 @@ import           MoneySplit          (Account, Actions (Actions), Amount,
                                                    txDebitAccount),
                                       TxReason (TxReasonExpense,
                                                 TxReasonPayment),
-                                      Voice (Active), accountUsers,
-                                      actionsAccounts, addTips, balance,
-                                      creditAccountTransactions,
+                                      Voice (Active), accountPlurality,
+                                      accountUsers, actionsAccounts, addTips,
+                                      balance, creditAccountTransactions,
                                       debitAccountTransactions,
                                       groupTransactionsByReason, groupsByUsers,
                                       printAccount, printAccountList,
                                       printAccountStatusGetsBackFrom,
                                       printAccountStatusOwesTo,
-                                      printSummaryBySingleReason,
-                                      printUsersList, splitItemUsers,
-                                      splitItemsForAccount, splitItemsUsers,
-                                      splitTosToAccounts, userToAccount,
-                                      usersToAccounts, verbForm)
-import           Reflex.Dom          (DomBuilder, MonadHold, PostBuild, blank,
-                                      el, text)
+                                      printSingleReasonSummary, printUsersList,
+                                      splitItemUsers, splitItemsForAccount,
+                                      splitItemsUsers, splitTosToAccounts,
+                                      userToAccount, usersToAccounts, verbForm)
+import           Reflex.Dom          (DomBuilder, MonadHold, PostBuild, el,
+                                      text)
 import           Text.Printf         (printf)
 
 reportAccountStatusOwesTo
@@ -51,7 +50,7 @@ reportAccountStatusOwesTo acc balance txs = do
   text . T.pack
     $ printf "%s %s %s"
       ( printAccount acc)
-      ( verbForm acc "owe" Present Active Affirmative )
+      ( verbForm (accountPlurality acc) "owe" Present Active Affirmative )
       ( show . abs $ balance )
   el "ul" $ do
     forM_ txs $ \tx -> do
@@ -66,7 +65,7 @@ reportAccountStatusOwedBy acc balance txs = do
   text . T.pack
     $ printf "%s %s back %s"
       ( printAccount acc )
-      ( verbForm acc "get" Present Active Affirmative )
+      ( verbForm (accountPlurality acc) "get" Present Active Affirmative )
       ( show balance )
   el "ul" $ do
     forM_ txs $ \tx -> do
@@ -200,14 +199,14 @@ reportAccountSingleReason
   -> (TxReason, [Transaction]) -> m Amount
 reportAccountSingleReason actions acc owes total reasonGroup
   | total ==  0  = do
-      printSummaryBySingleReason actions acc reasonGroup & \case
+      printSingleReasonSummary actions acc reasonGroup & \case
         Just summary -> do
           reportAccountSingleReasonWithSummary
             actions summary reasonGroup
           return total'
         Nothing -> return total'
   | otherwise = do
-      printSummaryBySingleReason actions acc reasonGroup & \case
+      printSingleReasonSummary actions acc reasonGroup & \case
         Just summary -> do
           let summaryAndTotal
                 = summary
@@ -234,8 +233,4 @@ report actions (txsNew, txsOld) = do
     expandableContentLi
       ( reportAccountStatus acc txsNew )
       ( reportAccountStatus acc txsNew )
-      ( el "p" $ do
-          text . T.pack . printAccount $ acc
-          el "br" blank
-          reportAccountReasons actions acc txsOld
-      )
+      ( el "p" $ reportAccountReasons actions acc txsOld )
