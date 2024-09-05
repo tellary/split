@@ -529,15 +529,6 @@ groupTransactionsByReason
 capitaize [] = []
 capitaize (c:cs) = toUpper c:cs
 
-printAccountBalance acc txs
-  = printf "%s %s %s"
-    ( printAccount acc )
-    ( verbForm (accountPlurality acc) "owe" Present voice Affirmative )
-    ( show . abs $ b )
-  where
-    b     = balance acc txs
-    voice = if b < 0 then Active else Passive
-
 printSingleReasonSummary
   :: Actions -> Account -> (TxReason, [Transaction]) -> Maybe String
 printSingleReasonSummary actions acc (reason, txs)
@@ -647,29 +638,31 @@ listPlurality [] = error "listPlurality: empty list"
 listPlurality [_] = Single
 listPlurality (_:_:_) = Plural
 
-verbForm plurality              "owe"  tense   Passive Affirmative
+verbForm plurality "owe" tense   Passive Affirmative
   = verbForm plurality "ow" tense Passive Affirmative
-verbForm Single  "do"   _       Active  Negative = "doesn't"
+verbForm plurality "settle" tense   Passive Affirmative
+  = verbForm plurality "settl" tense Passive Affirmative
+verbForm Single "do"   _       Active  Negative = "doesn't"
 verbForm Plural "do"   _       Active  Negative = "don't"
-verbForm Single  "lend" Past    Active  Affirmative = "lent"
+verbForm Single "lend" Past    Active  Affirmative = "lent"
 verbForm Plural "lend" Past    Active  Affirmative = "lent"
-verbForm Single  verb   Present Active  Affirmative
+verbForm Single verb   Present Active  Affirmative
   = verb ++ "s"
 verbForm Plural verb   Present Active  Affirmative
   = verb
-verbForm Single  verb   Present Active  Negative
+verbForm Single verb   Present Active  Negative
   = "is " ++ verb ++ "ed"
 verbForm Plural verb   Present Active  Negative
   = "are " ++ verb ++ "ed"
-verbForm Single  verb   Present Passive Affirmative
+verbForm Single verb   Present Passive Affirmative
   = "is " ++ verb ++ "ed"
 verbForm Plural verb   Present Passive Affirmative
   = "are " ++ verb ++ "ed"
-verbForm Single  verb   Past    Active  Affirmative
+verbForm Single verb   Past    Active  Affirmative
   = verb ++ "ed"
 verbForm Plural verb   Past    Active  Affirmative
   = verb ++ "ed"
-verbForm Single  verb   Past    Passive Affirmative
+verbForm Single verb   Past    Passive Affirmative
   = "was " ++ verb ++ "ed"
 verbForm Plural verb   Past    Passive Affirmative
   = "were " ++ verb ++ "ed"
@@ -799,10 +792,9 @@ printAccountPayed acc txs
 
 printAccountWasPayed :: Account -> [Transaction] -> String
 printAccountWasPayed acc txs
-  = printf "%s %s %s\n\n%s"
-    (printAccount acc)
-    (verbForm (accountPlurality acc) "pay" Past Passive Affirmative)
+  = printf "Others payed %s for %s\n\n%s"
     (show . sum . map txAmount $ txs)
+    (printAccount acc)
     (printTransactions txs)
 
 printAccountReport0
