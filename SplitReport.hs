@@ -26,7 +26,7 @@ import           MoneySplit          (Account, Actions (Actions), Amount,
                                                    txDebitAccount),
                                       TxReason (TxReasonExpense,
                                                 TxReasonPayment),
-                                      Voice (Active), accountPlurality,
+                                      Voice (Active, Passive), accountPlurality,
                                       accountUsers, actionsAccounts, addTips,
                                       balance, creditAccountTransactions,
                                       debitAccountTransactions,
@@ -44,6 +44,11 @@ import           Text.Printf         (printf)
 
 reportAccountStatusOwesTo
   :: DomBuilder t m => Account -> Amount -> [Transaction] -> m ()
+reportAccountStatusOwesTo acc _ []
+  = text . T.pack
+  $ printf "%s %s"
+    (printAccount acc)
+    (verbForm (accountPlurality acc) "settle" Present Passive Affirmative)
 reportAccountStatusOwesTo acc balance [tx]
   = text . T.pack $ printAccountStatusOwesTo acc balance [tx]
 reportAccountStatusOwesTo acc balance txs = do
@@ -59,6 +64,11 @@ reportAccountStatusOwesTo acc balance txs = do
           ( show . txAmount $ tx )
           ( printAccount . txCreditAccount $ tx )
 
+reportAccountStatusOwedBy acc _ []
+  = text . T.pack
+  $ printf "%s %s"
+    (printAccount acc)
+    (verbForm (accountPlurality acc) "settle" Present Passive Affirmative)
 reportAccountStatusOwedBy acc balance [tx]
   = text . T.pack $ printAccountStatusGetsBackFrom acc balance [tx]
 reportAccountStatusOwedBy acc balance txs = do
