@@ -979,9 +979,9 @@ berriesSplit4
     , SplitItem (SplitToUser "Tasha") "1kg strawberry" 4
     , SplitItem (SplitToUser "Tasha") "1kg blueberry"  9
     , SplitItem (SplitToUser "Ilya" ) "1kg blackberry" 6
-    , SplitItem (SplitToUser "Ilya" )  "1kg strawberry" 4
-    , SplitItem (SplitToUser "Ilya" )  "1kg blueberry"  9
-    , SplitItem (SplitToUser "Ilya" )  "1kg raspberry"  6
+    , SplitItem (SplitToUser "Ilya" ) "1kg strawberry" 4
+    , SplitItem (SplitToUser "Ilya" ) "1kg blueberry"  9
+    , SplitItem (SplitToUser "Ilya" ) "1kg raspberry"  6
     , SplitItem (SplitToGroup ["Dima", "Alena"]) "1kg blackberry" 6
     , SplitItem (SplitToGroup ["Dima", "Alena"]) "1kg strawberry" 4
     , SplitItem (SplitToGroup ["Dima", "Alena"]) "1kg blueberry"  9

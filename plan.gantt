@@ -4,7 +4,7 @@ Project starts 2024-05-27
 saturday are closed
 sunday are closed
 
-today is 2024-09-05
+today is 2024-09-08
 today is colored in lightgrey
 
 -- Core logic --
@@ -115,7 +115,9 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Learn an FRP framework: Build a WX example from the UPenn article] starts on 2024-09-02
 [Fix user deletion validation] starts on 2024-09-04
 [Get rid of passive voice "are owed" and "were payed"] starts on 2024-09-04 and ends on 2024-09-05
-[Post about Money Split] is 0% completed and starts on 2024-08-31 and ends on 2024-09-05
+[Post about Money Split] is 100% completed and starts on 2024-08-31 and ends on 2024-09-08
+2024-09-07 is open
+2024-09-08 is open
 
 -- Core logic --
 

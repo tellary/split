@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 module ActionsStore where
 
 import Control.Monad.IO.Class (MonadIO)
