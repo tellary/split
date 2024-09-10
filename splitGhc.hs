@@ -1,9 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-import ActionsStore   (StubActionsStore (StubActionsStore))
 import Data.FileEmbed (embedFile)
 import Reflex.Dom     (mainWidgetWithCss)
 import SplitUI        (app)
+import WorkspaceStore (StubWorkspaceStore (StubWorkspaceStore))
 
 main :: IO ()
-main = mainWidgetWithCss $(embedFile "split.css") (app StubActionsStore)
+main = mainWidgetWithCss $(embedFile "split.css") (app StubWorkspaceStore)

@@ -10,8 +10,6 @@
 
 module SplitUI where
 
-import           ActionsStore               (ActionsStore, getActions,
-                                             putActions)
 import           Control.Monad              (join)
 import           Control.Monad.Fix          (MonadFix)
 import           Control.Monad.IO.Class     (MonadIO)
@@ -34,6 +32,9 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              tagPromptlyValid, tagValid,
                                              unwrapValidDynamicDynamicWidget,
                                              unwrapValidDynamicWidget)
+import           WorkspaceStore             (WorkspaceStore,
+                                             defaultWorkpsaceName, getActions,
+                                             putActions)
 
 resettableInput
   :: forall t m a b . (Show b, DomBuilder t m, MonadHold t m, MonadFix m)
@@ -1074,15 +1075,15 @@ manageActions actionsArr0 users groups = do
 
 app
   :: ( Reflex t, DomBuilder t m, MonadHold t m
-     , PostBuild t m, MonadFix m, ActionsStore s, MonadIO m )
+     , PostBuild t m, MonadFix m, WorkspaceStore s, MonadIO m )
   => s -> m ()
 app store = do
-  actions0 <- getActions store
+  actions0 <- getActions store defaultWorkpsaceName
   rec 
     users <- manageUsers (actionsUsers actions0) actions
     groups <- manageGroups (actionsGroups actions0) actions users
     actions <- manageActions (actionsArr actions0) users groups
-  dyn (actions >>= (return . putActions store))
+  dyn (actions >>= (return . putActions store defaultWorkpsaceName))
   let nullified = (nullifyBalances . actionsToTransactions) <$> actions
   el "h2" $ text "Report"
   dyn (report <$> actions <*> nullified)

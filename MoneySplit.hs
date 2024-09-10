@@ -10,13 +10,13 @@ import           Control.Applicative (empty)
 import           Data.Aeson          (FromJSON (parseJSON), ToJSON (toJSON),
                                       Value (String))
 import           Data.Char           (toUpper)
-import           Data.Decimal
+import           Data.Decimal        (Decimal, DecimalRaw)
 import           Data.List           (find, group, intercalate, nub, sort,
                                       sortBy, sortOn)
 import           Data.List.Extra     (groupOn)
 import           Data.Maybe          (fromJust, isJust)
 import qualified Data.Text           as T
-import           GHC.Generics
+import           GHC.Generics        (Generic)
 import           Text.Pretty.Simple  (pPrint)
 import           Text.Printf         (printf)
 import           Text.Read           (readMaybe)
