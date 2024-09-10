@@ -1,0 +1,15 @@
+@startsalt
+{ { Current workspace: | ^Default^ Travel to Paris^ <Create new workspace>^ | [Delete workspace]
+    ==Manage users
+  }
+  .
+  .
+  -------
+  .
+  .
+  { Current workspace: | ^<Create new workspace>^
+    New workspace name: | "Workpsace name" | [Create workspace] 
+    ==Manage users
+  }
+}
+@endsalt

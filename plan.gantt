@@ -4,7 +4,7 @@ Project starts 2024-05-27
 saturday are closed
 sunday are closed
 
-today is 2024-09-08
+today is 2024-09-10
 today is colored in lightgrey
 
 -- Core logic --
@@ -118,14 +118,17 @@ then [Implement "itemized split" expenses] is 100% completed and requires 1 day
 [Post about Money Split] is 100% completed and starts on 2024-08-31 and ends on 2024-09-08
 2024-09-07 is open
 2024-09-08 is open
+2024-09-09 is closed
+[Support multiple workspaces] is 0% completed and starts on 2024-09-10 and requires 2 days
+then [Migrate storage for multiple workspaces] is 0% completed
 
 -- Core logic --
 
-[Validate actions] is 0% completed and starts at [Post about Money Split]'s end
+[Validate actions] is 0% completed and starts at [Migrate storage for multiple workspaces]'s end
 
 -- Implement backend --
 
-[Decide if I want to use serverless] starts at [Validate actions]'s end and is 0% completed
+[Design backend] starts at [Validate actions]'s end and is 0% completed
 [Implement a restful method that just overrides `Actions`] starts at [Decide if I want to use serverless]'s end and is 0% completed
 [Implement OAuth with Google] starts at [Implement a restful method that just overrides `Actions`]'s end and is 0% completed
 [Restrict workspace editing to owner] starts at [Implement OAuth with Google]'s end and is 0% completed
