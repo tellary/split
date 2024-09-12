@@ -8,11 +8,11 @@ import Control.Monad.IO.Class (MonadIO)
 import Debug.Trace            (trace)
 import MoneySplit             (Action (ExpenseAction), Actions (Actions),
                                Expense (Expense), Split (SplitEquallyAll),
-                               actions3)
+                               actions1, actions2, actions3)
 
 type WorkspaceName = String
 
-defaultWorkpsaceName = "Default"
+defaultWorkspaceName = "Default"
 
 class WorkspaceStore s where
   putActions :: MonadIO m => s -> WorkspaceName -> Actions -> m ()
@@ -34,8 +34,10 @@ instance WorkspaceStore StubWorkspaceStore where
   putActions _ workspaceName _
     = trace ("putActions: " ++ workspaceName) $ return ()
   getActions _ workspaceName
-    | workspaceName == defaultWorkpsaceName = return defaultActions
+    | workspaceName == defaultWorkspaceName = return defaultActions
+    | workspaceName == "Serge houseworming" = return actions1
+    | workspaceName == "Nick's birthday" = return actions2
     | workspaceName == "Coimbra trip" = return actions3
-    | otherwise = error $ "Unexpected workspace: " ++ workspaceName
+    | otherwise = return $ Actions [] [] []
   putWorkspaces _ workspaces = trace ("putWorkspaces: " ++ show workspaces) $ return ()
-  getWorkspaces _ = return [defaultWorkpsaceName, "Coimbra trip"]
+  getWorkspaces _ = return [defaultWorkspaceName, "Coimbra trip"]

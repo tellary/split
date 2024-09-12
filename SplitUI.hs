@@ -10,11 +10,12 @@
 
 module SplitUI where
 
+import           Control.Lens               (view)
 import           Control.Monad              (join)
 import           Control.Monad.Fix          (MonadFix)
 import           Control.Monad.IO.Class     (MonadIO)
 import           Control.Monad.Trans.Except (runExceptT)
-import           Data.List                  (delete, find, (\\))
+import           Data.List                  (delete, elemIndex, find, (\\))
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import           Data.Maybe                 (isJust)
@@ -32,8 +33,8 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              tagPromptlyValid, tagValid,
                                              unwrapValidDynamicDynamicWidget,
                                              unwrapValidDynamicWidget)
-import           WorkspaceStore             (WorkspaceStore,
-                                             defaultWorkpsaceName, getActions,
+import           WorkspaceStore             (WorkspaceName, WorkspaceStore,
+                                             defaultWorkspaceName, getActions,
                                              putActions)
 
 resettableInput
@@ -51,9 +52,176 @@ resettableInput submitEvent validation = do
           = tagPromptlyValid validInput submitOrEnterEv
   return (ev, validInput)
 
+type NewWorkspaceStateEvent t = Event t (WorkspaceState)
+
+data WorkspaceState
+  = InitialWorkspaceState
+  | ConfirmWipeInitialWorkspaceState
+  | CreateSecondWorkspaceState
+  | MultipleWorkspaceState      WorkspaceName [WorkspaceName]
+  | CreateNewWorkspaceState     WorkspaceName [WorkspaceName]
+  | ConfirmDeleteWorkspaceState WorkspaceName [WorkspaceName]
+  | ConfirmWipeWorkspaceState   WorkspaceName [WorkspaceName]
+  deriving Show
+
+newWorkspace
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => Bool -> WorkspaceName -> [WorkspaceName] -> m (NewWorkspaceStateEvent t)
+newWorkspace initState defWs wss = do
+  text "New workspace name: "
+  rec
+    (ev, userInput) <- resettableInput addWorkspaceButton $
+      \workspaceName ->
+        let workspaceNameStr = T.unpack . T.strip $ workspaceName
+        in if null $ workspaceNameStr
+           then Left $ "Empty workspace names are not allowed"
+           else Right workspaceNameStr
+    text " "
+    addWorkspaceButton <- button "Add Workspace"
+    cancelButton <- button "Cancel"
+    dynText =<< (errorDyn "" addWorkspaceButton $ userInput)
+  return . leftmost $
+    [ fmap
+      (\newWorkspaceName ->
+         MultipleWorkspaceState
+         newWorkspaceName
+         (wss ++ [newWorkspaceName])
+      )
+      $ tagValid userInput ev
+    , if initState
+      then InitialWorkspaceState <$ cancelButton
+      else MultipleWorkspaceState defWs wss <$ cancelButton
+    ]
+
+manageWorkspacesState
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => WorkspaceState -> m (NewWorkspaceStateEvent t)
+manageWorkspacesState InitialWorkspaceState = el "p" $ do
+  text . T.pack
+    $  "Separate workspaces allow to track shared expenses "
+    ++ "for different purpose and users. "
+    ++ "You are working in the default workspace now, you can "
+  (elCreate, _) <- elAttr' "a" ("class" =: "link")
+                 $ text "create another workspace"
+  text " or "
+  (elWipe, _) <- elAttr' "a" ("class" =: "link")
+               $ text "wipe data of the default workspace"
+  text "."
+  return . leftmost $
+    [ CreateSecondWorkspaceState <$ domEvent Click elCreate
+    , ConfirmWipeInitialWorkspaceState <$ domEvent Click elWipe
+    ]
+manageWorkspacesState ConfirmWipeInitialWorkspaceState = do
+  initialEv <- manageWorkspacesState InitialWorkspaceState
+  el "p" $ text "Are you sure you want to wipe the default workspace? "
+  el "p" $ do
+    confirmWipeEv <- button "Yes, wipe the default workspace"
+    cancelEv <- button "Cancel"
+    return . leftmost $
+      [ initialEv
+      , InitialWorkspaceState <$ confirmWipeEv
+      , InitialWorkspaceState <$ cancelEv
+      ]
+manageWorkspacesState CreateSecondWorkspaceState = do
+  initialEv <- manageWorkspacesState InitialWorkspaceState
+  newWsEv <- el "p" $ newWorkspace True defaultWorkspaceName [defaultWorkspaceName]
+  return . leftmost $
+    [ initialEv
+    , newWsEv
+    ]
+manageWorkspacesState (MultipleWorkspaceState defWs wss) = el "p" $ do
+  text "Select workspace: "
+  let newIdx = length wss
+  wsEl :: Dropdown t Int <- dropdown
+                            ( maybe
+                              ( error $ printf "%s workspace must be present")
+                              id
+                              ( elemIndex defWs wss )
+                            )
+                            ( constDyn
+                              . M.fromList
+                              $ zip
+                                [0..] -- Index is a key to preserve order
+                                (map T.pack wss ++ ["<New workspace>"])
+                            )
+                            def
+  deleteEv <-
+    case defWs of
+      "Default" -> fmap (True <$) $ button "Wipe the default workspace"
+      _ -> fmap (False <$) . button . T.pack
+           $ printf "Delete the '%s' workspace" defWs
+  return . leftmost $
+    [ fmap ( \case
+               idx | idx == newIdx -> CreateNewWorkspaceState defWs      wss
+                   | otherwise     -> MultipleWorkspaceState  (wss!!idx) wss
+           )
+      $ view dropdown_change wsEl
+    , (\case
+          True  -> ConfirmWipeWorkspaceState defWs wss
+          False -> ConfirmDeleteWorkspaceState defWs wss
+      ) <$> deleteEv
+    ]
+manageWorkspacesState (CreateNewWorkspaceState defWs wss) = do
+  selectEv <- manageWorkspacesState (MultipleWorkspaceState defWs wss)
+  addEv <- newWorkspace False defWs wss
+  return . leftmost $
+    [ selectEv
+    , addEv
+    ]
+manageWorkspacesState (ConfirmDeleteWorkspaceState deleteWs wss) = do
+  selectEv <- manageWorkspacesState (MultipleWorkspaceState deleteWs wss)
+  el "p" . text . T.pack
+    $ printf "Are you sure you want to delete the '%s' workspace? " deleteWs
+  el "p" $ do
+    confirmDeleteEv <- button . T.pack
+      $ printf "Yes, delete the '%s' workspace" deleteWs
+    cancelEv <- button "Cancel"
+    let newWss = delete deleteWs wss
+    return . leftmost $
+      [ selectEv
+      , MultipleWorkspaceState (head newWss) newWss <$ confirmDeleteEv
+      , MultipleWorkspaceState deleteWs wss         <$ cancelEv
+      ]
+manageWorkspacesState (ConfirmWipeWorkspaceState wipeWs wss) = do
+  selectEv <- manageWorkspacesState (MultipleWorkspaceState wipeWs wss)
+  let wipeWsLabel = if wipeWs == defaultWorkspaceName
+                    then "default" :: String
+                    else printf "'%s'" wipeWs
+  el "p" . text . T.pack
+    $ printf "Are you sure you want to wipe the %s workspace? " wipeWsLabel
+  el "p" $ do
+    confirmWipeEv <- button . T.pack
+      $ printf "Yes, wipe the %s workspace" wipeWsLabel
+    cancelEv <- button "Cancel"
+    return . leftmost $
+      [ selectEv
+      , MultipleWorkspaceState wipeWs wss <$ confirmWipeEv
+      , MultipleWorkspaceState wipeWs wss <$ cancelEv
+      ]
+
+workspaceStateName InitialWorkspaceState              = defaultWorkspaceName
+workspaceStateName ConfirmWipeInitialWorkspaceState   = defaultWorkspaceName
+workspaceStateName CreateSecondWorkspaceState         = defaultWorkspaceName
+workspaceStateName (MultipleWorkspaceState ws _)      = ws
+workspaceStateName (CreateNewWorkspaceState ws _)     = ws
+workspaceStateName (ConfirmDeleteWorkspaceState ws _) = ws
+workspaceStateName (ConfirmWipeWorkspaceState ws _)   = ws
+
+manageWorkspaces
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+  => m (Dynamic t WorkspaceName)
+manageWorkspaces = do
+  el "h2" $ text "Select workspace"
+  rec
+    workspaceStateDyn :: Dynamic t WorkspaceState
+      <- foldDyn const InitialWorkspaceState newWorkspaceStateEvent
+    newWorkspaceStateEvent <- switchHold never =<< dyn do
+      fmap manageWorkspacesState workspaceStateDyn
+  return . fmap workspaceStateName $ workspaceStateDyn
+
 manageUsers
   :: forall t m .
-     (Reflex t, DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
+     (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
   => [User] -> Dynamic t Actions -> m (Dynamic t [User])
 manageUsers users0 actions = do
   el "h2" $ text "Manage users"
@@ -938,7 +1106,7 @@ actionLink label item = do
   text " ["
   (el, _) <- elAttr' "a" ("class" =: "link") $ text label
   text "]"
-  return (item <$ domEvent Click el)  
+  return (item <$ domEvent Click el)
 
 actionText
     action@( ExpenseAction
@@ -1078,13 +1246,15 @@ app
      , PostBuild t m, MonadFix m, WorkspaceStore s, MonadIO m )
   => s -> m ()
 app store = do
-  actions0 <- getActions store defaultWorkpsaceName
-  rec 
-    users <- manageUsers (actionsUsers actions0) actions
-    groups <- manageGroups (actionsGroups actions0) actions users
-    actions <- manageActions (actionsArr actions0) users groups
-  dyn (actions >>= (return . putActions store defaultWorkpsaceName))
-  let nullified = (nullifyBalances . actionsToTransactions) <$> actions
-  el "h2" $ text "Report"
-  dyn (report <$> actions <*> nullified)
-  return ()  
+  workspaceNameDyn <- manageWorkspaces
+  dyn_ . ffor workspaceNameDyn $ \workspaceName -> do
+    actions0 <- getActions store workspaceName
+    rec
+      users <- manageUsers (actionsUsers actions0) actions
+      groups <- manageGroups (actionsGroups actions0) actions users
+      actions <- manageActions (actionsArr actions0) users groups
+    dyn_ (actions >>= (return . putActions store workspaceName))
+    let nullified = (nullifyBalances . actionsToTransactions) <$> actions
+    el "h2" $ text "Report"
+    dyn (report <$> actions <*> nullified)
+    return ()
