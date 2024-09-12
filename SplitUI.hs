@@ -202,10 +202,10 @@ manageWorkspacesState (ConfirmWipeWorkspaceState wipeWs wss) = do
 workspaceStateName InitialWorkspaceState              = defaultWorkspaceName
 workspaceStateName ConfirmWipeInitialWorkspaceState   = defaultWorkspaceName
 workspaceStateName CreateSecondWorkspaceState         = defaultWorkspaceName
-workspaceStateName (MultipleWorkspaceState ws _)      = ws
-workspaceStateName (CreateNewWorkspaceState ws _)     = ws
+workspaceStateName (MultipleWorkspaceState      ws _) = ws
+workspaceStateName (CreateNewWorkspaceState     ws _) = ws
 workspaceStateName (ConfirmDeleteWorkspaceState ws _) = ws
-workspaceStateName (ConfirmWipeWorkspaceState ws _)   = ws
+workspaceStateName (ConfirmWipeWorkspaceState   ws _) = ws
 
 manageWorkspaces
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
@@ -1256,5 +1256,5 @@ app store = do
     dyn_ (actions >>= (return . putActions store workspaceName))
     let nullified = (nullifyBalances . actionsToTransactions) <$> actions
     el "h2" $ text "Report"
-    dyn (report <$> actions <*> nullified)
+    dyn_ (report <$> actions <*> nullified)
     return ()
