@@ -26,7 +26,7 @@ main = do
     Just _ -> do return ()
   mainWidgetWithCss $(embedFile "split.css") $ do
     elAttr "span" ("class" =: "notice") $ do
-      text "The following is page is pre-populated with sample data for the "
+      text "The following page is pre-populated with sample data for the "
       elAttr "a" ("href" =: "https://split.apps.tellary.ru")
         $ text "split.apps.tellary.ru"
       text " application"
