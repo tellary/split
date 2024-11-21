@@ -41,4 +41,4 @@ instance WorkspaceStore BrowserWorkspaceStore where
   putWorkspaces _ workspaces
     = setJson "workspaces" workspaces
   getWorkspaces _
-    = getJson "workspaces" "workspaces" [defaultWorkpsaceName]
+    = getJson "workspaces" "workspaces" [defaultWorkspaceName]
