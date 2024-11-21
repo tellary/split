@@ -35,7 +35,7 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              unwrapValidDynamicWidget)
 import           WorkspaceStore             (WorkspaceName, WorkspaceStore,
                                              defaultWorkspaceName, getActions,
-                                             putActions)
+                                             getWorkspaces, putActions)
 
 resettableInput
   :: forall t m a b . (Show b, DomBuilder t m, MonadHold t m, MonadFix m)
@@ -209,12 +209,12 @@ workspaceStateName (ConfirmWipeWorkspaceState   ws _) = ws
 
 manageWorkspaces
   :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => m (Dynamic t WorkspaceName)
-manageWorkspaces = do
+  => WorkspaceState -> m (Dynamic t WorkspaceName)
+manageWorkspaces initalWorkspaceState = do
   el "h2" $ text "Select workspace"
   rec
     workspaceStateDyn :: Dynamic t WorkspaceState
-      <- foldDyn const InitialWorkspaceState newWorkspaceStateEvent
+      <- foldDyn const initalWorkspaceState newWorkspaceStateEvent
     newWorkspaceStateEvent <- switchHold never =<< dyn do
       fmap manageWorkspacesState workspaceStateDyn
   return . fmap workspaceStateName $ workspaceStateDyn
@@ -1246,7 +1246,17 @@ app
      , PostBuild t m, MonadFix m, WorkspaceStore s, MonadIO m )
   => s -> m ()
 app store = do
-  workspaceNameDyn <- manageWorkspaces
+  workspaceNames <- getWorkspaces store
+  let initialWorkspaceState = case workspaceNames of
+        [] -> InitialWorkspaceState
+        [ws] | ws == defaultWorkspaceName -> InitialWorkspaceState
+             | otherwise
+               -> error
+                $ printf
+                  "The last workspace must always be '%s'"
+                  defaultWorkspaceName
+        wss@(firstWs:_) -> MultipleWorkspaceState firstWs wss 
+  workspaceNameDyn <- manageWorkspaces initialWorkspaceState
   dyn_ . ffor workspaceNameDyn $ \workspaceName -> do
     actions0 <- getActions store workspaceName
     rec

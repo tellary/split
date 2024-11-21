@@ -6,7 +6,10 @@ import           Control.Monad.IO.Class    (MonadIO, liftIO)
 import           Data.Aeson                (FromJSON, decode, encode)
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import           Data.JSString             (JSString, pack, unpack)
-import           JavaScript.Web.Storage    (getItem, localStorage, setItem)
+import           Data.List                 (isPrefixOf)
+import           Data.Maybe                (fromJust, isJust)
+import           JavaScript.Web.Storage    (getIndex, getItem, getLength,
+                                            localStorage, setItem)
 import           MoneySplit                (Actions (Actions))
 import           Text.Printf               (printf)
 import           WorkspaceStore
@@ -33,6 +36,11 @@ getJson valueType key defaultValue = liftIO $ do
                    $ printf "Failed to read %s from browser storage" valueType
     Nothing -> return defaultValue
 
+getIndexStr :: MonadIO m => Int -> m (Maybe String)
+getIndexStr i = liftIO $ do
+  jsStrMaybe <- getIndex i localStorage
+  return $ fmap unpack jsStrMaybe
+
 instance WorkspaceStore BrowserWorkspaceStore where
   putActions _ workspaceName actions
     = setJson (workspaceKey workspaceName) actions
@@ -40,5 +48,12 @@ instance WorkspaceStore BrowserWorkspaceStore where
     = getJson "actions" (workspaceKey workspaceName) (Actions [] [] [])
   putWorkspaces _ workspaces
     = setJson "workspaces" workspaces
-  getWorkspaces _
-    = getJson "workspaces" "workspaces" [defaultWorkspaceName]
+  getWorkspaces _ = liftIO $ do
+    len <- getLength localStorage
+    let prefix = "workspace_"
+    keys <- filter (prefix `isPrefixOf`)
+            . map fromJust
+            . filter isJust
+            <$> mapM getIndexStr [0..len - 1]
+    let prefixLength = length prefix
+    return $ map (drop prefixLength) keys
