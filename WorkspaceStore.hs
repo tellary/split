@@ -17,7 +17,7 @@ defaultWorkspaceName = "Default"
 class WorkspaceStore s where
   putActions :: MonadIO m => s -> WorkspaceName -> Actions -> m ()
   getActions :: MonadIO m => s -> WorkspaceName -> m Actions
-  putWorkspaces :: MonadIO m => s -> [WorkspaceName] -> m ()
+  deleteWorkspace :: MonadIO m => s -> WorkspaceName -> m ()
   getWorkspaces :: MonadIO m => s -> m [WorkspaceName]
 
 data StubWorkspaceStore = StubWorkspaceStore
@@ -39,5 +39,6 @@ instance WorkspaceStore StubWorkspaceStore where
     | workspaceName == "Nick's birthday" = return actions2
     | workspaceName == "Coimbra trip" = return actions3
     | otherwise = return $ Actions [] [] []
-  putWorkspaces _ workspaces = trace ("putWorkspaces: " ++ show workspaces) $ return ()
+  deleteWorkspace _ workspace
+    = trace ("deleteWorkspace: " ++ show workspace) $ return ()
   getWorkspaces _ = return [defaultWorkspaceName, "Coimbra trip"]

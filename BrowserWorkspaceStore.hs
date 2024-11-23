@@ -9,7 +9,7 @@ import           Data.JSString             (JSString, pack, unpack)
 import           Data.List                 (isPrefixOf)
 import           Data.Maybe                (fromJust, isJust)
 import           JavaScript.Web.Storage    (getIndex, getItem, getLength,
-                                            localStorage, setItem)
+                                            localStorage, removeItem, setItem)
 import           MoneySplit                (Actions (Actions))
 import           Text.Printf               (printf)
 import           WorkspaceStore
@@ -46,8 +46,8 @@ instance WorkspaceStore BrowserWorkspaceStore where
     = setJson (workspaceKey workspaceName) actions
   getActions _ workspaceName
     = getJson "actions" (workspaceKey workspaceName) (Actions [] [] [])
-  putWorkspaces _ workspaces
-    = setJson "workspaces" workspaces
+  deleteWorkspace _ workspaceName
+    = liftIO $ removeItem (workspaceKey workspaceName) localStorage
   getWorkspaces _ = liftIO $ do
     len <- getLength localStorage
     let prefix = "workspace_"

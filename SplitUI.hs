@@ -33,9 +33,12 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              tagPromptlyValid, tagValid,
                                              unwrapValidDynamicDynamicWidget,
                                              unwrapValidDynamicWidget)
-import           WorkspaceStore             (WorkspaceName, WorkspaceStore,
-                                             defaultWorkspaceName, getActions,
-                                             getWorkspaces, putActions)
+import           WorkspaceStore             (WorkspaceName,
+                                             WorkspaceStore (deleteWorkspace,
+                                                             getActions,
+                                                             getWorkspaces,
+                                                             putActions),
+                                             defaultWorkspaceName)
 
 resettableInput
   :: forall t m a b . (Show b, DomBuilder t m, MonadHold t m, MonadFix m)
@@ -61,6 +64,7 @@ data WorkspaceState
   | MultipleWorkspaceState      WorkspaceName [WorkspaceName]
   | CreateNewWorkspaceState     WorkspaceName [WorkspaceName]
   | ConfirmDeleteWorkspaceState WorkspaceName [WorkspaceName]
+  | PerformDeleteWorkspaceState WorkspaceName WorkspaceName [WorkspaceName]
   | ConfirmWipeWorkspaceState   WorkspaceName [WorkspaceName]
   deriving Show
 
@@ -93,124 +97,20 @@ newWorkspace initState defWs wss = do
       else MultipleWorkspaceState defWs wss <$ cancelButton
     ]
 
-manageWorkspacesState
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => WorkspaceState -> m (NewWorkspaceStateEvent t)
-manageWorkspacesState InitialWorkspaceState = el "p" $ do
-  text . T.pack
-    $  "Separate workspaces allow to track shared expenses "
-    ++ "for different purpose and users. "
-    ++ "You are working in the default workspace now, you can "
-  (elCreate, _) <- elAttr' "a" ("class" =: "link")
-                 $ text "create another workspace"
-  text " or "
-  (elWipe, _) <- elAttr' "a" ("class" =: "link")
-               $ text "wipe data of the default workspace"
-  text "."
-  return . leftmost $
-    [ CreateSecondWorkspaceState <$ domEvent Click elCreate
-    , ConfirmWipeInitialWorkspaceState <$ domEvent Click elWipe
-    ]
-manageWorkspacesState ConfirmWipeInitialWorkspaceState = do
-  initialEv <- manageWorkspacesState InitialWorkspaceState
-  el "p" $ text "Are you sure you want to wipe the default workspace? "
-  el "p" $ do
-    confirmWipeEv <- button "Yes, wipe the default workspace"
-    cancelEv <- button "Cancel"
-    return . leftmost $
-      [ initialEv
-      , InitialWorkspaceState <$ confirmWipeEv
-      , InitialWorkspaceState <$ cancelEv
-      ]
-manageWorkspacesState CreateSecondWorkspaceState = do
-  initialEv <- manageWorkspacesState InitialWorkspaceState
-  newWsEv <- el "p" $ newWorkspace True defaultWorkspaceName [defaultWorkspaceName]
-  return . leftmost $
-    [ initialEv
-    , newWsEv
-    ]
-manageWorkspacesState (MultipleWorkspaceState defWs wss) = el "p" $ do
-  text "Select workspace: "
-  let newIdx = length wss
-  wsEl :: Dropdown t Int <- dropdown
-                            ( maybe
-                              ( error $ printf "%s workspace must be present")
-                              id
-                              ( elemIndex defWs wss )
-                            )
-                            ( constDyn
-                              . M.fromList
-                              $ zip
-                                [0..] -- Index is a key to preserve order
-                                (map T.pack wss ++ ["<New workspace>"])
-                            )
-                            def
-  deleteEv <-
-    case defWs of
-      "Default" -> fmap (True <$) $ button "Wipe the default workspace"
-      _ -> fmap (False <$) . button . T.pack
-           $ printf "Delete the '%s' workspace" defWs
-  return . leftmost $
-    [ fmap ( \case
-               idx | idx == newIdx -> CreateNewWorkspaceState defWs      wss
-                   | otherwise     -> MultipleWorkspaceState  (wss!!idx) wss
-           )
-      $ view dropdown_change wsEl
-    , (\case
-          True  -> ConfirmWipeWorkspaceState defWs wss
-          False -> ConfirmDeleteWorkspaceState defWs wss
-      ) <$> deleteEv
-    ]
-manageWorkspacesState (CreateNewWorkspaceState defWs wss) = do
-  selectEv <- manageWorkspacesState (MultipleWorkspaceState defWs wss)
-  addEv <- newWorkspace False defWs wss
-  return . leftmost $
-    [ selectEv
-    , addEv
-    ]
-manageWorkspacesState (ConfirmDeleteWorkspaceState deleteWs wss) = do
-  selectEv <- manageWorkspacesState (MultipleWorkspaceState deleteWs wss)
-  el "p" . text . T.pack
-    $ printf "Are you sure you want to delete the '%s' workspace? " deleteWs
-  el "p" $ do
-    confirmDeleteEv <- button . T.pack
-      $ printf "Yes, delete the '%s' workspace" deleteWs
-    cancelEv <- button "Cancel"
-    let newWss = delete deleteWs wss
-    return . leftmost $
-      [ selectEv
-      , MultipleWorkspaceState (head newWss) newWss <$ confirmDeleteEv
-      , MultipleWorkspaceState deleteWs wss         <$ cancelEv
-      ]
-manageWorkspacesState (ConfirmWipeWorkspaceState wipeWs wss) = do
-  selectEv <- manageWorkspacesState (MultipleWorkspaceState wipeWs wss)
-  let wipeWsLabel = if wipeWs == defaultWorkspaceName
-                    then "default" :: String
-                    else printf "'%s'" wipeWs
-  el "p" . text . T.pack
-    $ printf "Are you sure you want to wipe the %s workspace? " wipeWsLabel
-  el "p" $ do
-    confirmWipeEv <- button . T.pack
-      $ printf "Yes, wipe the %s workspace" wipeWsLabel
-    cancelEv <- button "Cancel"
-    return . leftmost $
-      [ selectEv
-      , MultipleWorkspaceState wipeWs wss <$ confirmWipeEv
-      , MultipleWorkspaceState wipeWs wss <$ cancelEv
-      ]
-
 workspaceStateName InitialWorkspaceState              = defaultWorkspaceName
 workspaceStateName ConfirmWipeInitialWorkspaceState   = defaultWorkspaceName
 workspaceStateName CreateSecondWorkspaceState         = defaultWorkspaceName
 workspaceStateName (MultipleWorkspaceState      ws _) = ws
 workspaceStateName (CreateNewWorkspaceState     ws _) = ws
 workspaceStateName (ConfirmDeleteWorkspaceState ws _) = ws
+workspaceStateName (PerformDeleteWorkspaceState ws _ _) = ws
 workspaceStateName (ConfirmWipeWorkspaceState   ws _) = ws
 
 manageWorkspaces
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => WorkspaceState -> m (Dynamic t WorkspaceName)
-manageWorkspaces initalWorkspaceState = do
+  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m
+     , MonadIO m, WorkspaceStore workspaceStore)
+  => workspaceStore -> WorkspaceState -> m (Dynamic t WorkspaceName)
+manageWorkspaces workspaceStore initalWorkspaceState = do
   el "h2" $ text "Select workspace"
   rec
     workspaceStateDyn :: Dynamic t WorkspaceState
@@ -218,6 +118,115 @@ manageWorkspaces initalWorkspaceState = do
     newWorkspaceStateEvent <- switchHold never =<< dyn do
       fmap manageWorkspacesState workspaceStateDyn
   return . fmap workspaceStateName $ workspaceStateDyn
+  where
+    manageWorkspacesState
+      :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m, MonadIO m)
+      => WorkspaceState -> m (NewWorkspaceStateEvent t)
+    manageWorkspacesState InitialWorkspaceState = el "p" $ do
+      text . T.pack
+        $  "Separate workspaces allow to track shared expenses "
+        ++ "for different purpose and users. "
+        ++ "You are working in the default workspace now, you can "
+      (elCreate, _) <- elAttr' "a" ("class" =: "link")
+                     $ text "create another workspace"
+      text " or "
+      (elWipe, _) <- elAttr' "a" ("class" =: "link")
+                   $ text "wipe data of the default workspace"
+      text "."
+      return . leftmost $
+        [ CreateSecondWorkspaceState <$ domEvent Click elCreate
+        , ConfirmWipeInitialWorkspaceState <$ domEvent Click elWipe
+        ]
+    manageWorkspacesState ConfirmWipeInitialWorkspaceState = do
+      initialEv <- manageWorkspacesState InitialWorkspaceState
+      el "p" $ text "Are you sure you want to wipe the default workspace? "
+      el "p" $ do
+        confirmWipeEv <- button "Yes, wipe the default workspace"
+        cancelEv <- button "Cancel"
+        return . leftmost $
+          [ initialEv
+          , InitialWorkspaceState <$ confirmWipeEv
+          , InitialWorkspaceState <$ cancelEv
+          ]
+    manageWorkspacesState CreateSecondWorkspaceState = do
+      initialEv <- manageWorkspacesState InitialWorkspaceState
+      newWsEv <- el "p" $ newWorkspace True defaultWorkspaceName [defaultWorkspaceName]
+      return . leftmost $
+        [ initialEv
+        , newWsEv
+        ]
+    manageWorkspacesState (MultipleWorkspaceState defWs wss) = el "p" $ do
+      text "Select workspace: "
+      let newIdx = length wss
+      wsEl :: Dropdown t Int <- dropdown
+                                ( maybe
+                                  ( error $ printf "%s workspace must be present")
+                                  id
+                                  ( elemIndex defWs wss )
+                                )
+                                ( constDyn
+                                  . M.fromList
+                                  $ zip
+                                    [0..] -- Index is a key to preserve order
+                                    (map T.pack wss ++ ["<New workspace>"])
+                                )
+                                def
+      deleteEv <-
+        case defWs of
+          "Default" -> fmap (True <$) $ button "Wipe the default workspace"
+          _ -> fmap (False <$) . button . T.pack
+               $ printf "Delete the '%s' workspace" defWs
+      return . leftmost $
+        [ fmap ( \case
+                   idx | idx == newIdx -> CreateNewWorkspaceState defWs      wss
+                       | otherwise     -> MultipleWorkspaceState  (wss!!idx) wss
+               )
+          $ view dropdown_change wsEl
+        , (\case
+              True  -> ConfirmWipeWorkspaceState defWs wss
+              False -> ConfirmDeleteWorkspaceState defWs wss
+          ) <$> deleteEv
+        ]
+    manageWorkspacesState (CreateNewWorkspaceState defWs wss) = do
+      selectEv <- manageWorkspacesState (MultipleWorkspaceState defWs wss)
+      addEv <- newWorkspace False defWs wss
+      return . leftmost $
+        [ selectEv
+        , addEv
+        ]
+    manageWorkspacesState (ConfirmDeleteWorkspaceState deleteWs wss) = do
+      selectEv <- manageWorkspacesState (MultipleWorkspaceState deleteWs wss)
+      el "p" . text . T.pack
+        $ printf "Are you sure you want to delete the '%s' workspace? " deleteWs
+      el "p" $ do
+        confirmDeleteEv <- button . T.pack
+          $ printf "Yes, delete the '%s' workspace" deleteWs
+        cancelEv <- button "Cancel"
+        let newWss = delete deleteWs wss
+        return . leftmost $
+          [ selectEv
+          , PerformDeleteWorkspaceState (head newWss) deleteWs newWss <$ confirmDeleteEv
+          , MultipleWorkspaceState deleteWs wss      <$ cancelEv
+          ]
+    manageWorkspacesState (PerformDeleteWorkspaceState ws deleteWs wss) = do
+      deleteWorkspace workspaceStore deleteWs
+      manageWorkspacesState $ MultipleWorkspaceState ws wss
+    manageWorkspacesState (ConfirmWipeWorkspaceState wipeWs wss) = do
+      selectEv <- manageWorkspacesState (MultipleWorkspaceState wipeWs wss)
+      let wipeWsLabel = if wipeWs == defaultWorkspaceName
+                        then "default" :: String
+                        else printf "'%s'" wipeWs
+      el "p" . text . T.pack
+        $ printf "Are you sure you want to wipe the %s workspace? " wipeWsLabel
+      el "p" $ do
+        confirmWipeEv <- button . T.pack
+          $ printf "Yes, wipe the %s workspace" wipeWsLabel
+        cancelEv <- button "Cancel"
+        return . leftmost $
+          [ selectEv
+          , MultipleWorkspaceState wipeWs wss <$ confirmWipeEv
+          , MultipleWorkspaceState wipeWs wss <$ cancelEv
+          ]
 
 manageUsers
   :: forall t m .
@@ -1256,7 +1265,7 @@ app store = do
                   "The last workspace must always be '%s'"
                   defaultWorkspaceName
         wss@(firstWs:_) -> MultipleWorkspaceState firstWs wss 
-  workspaceNameDyn <- manageWorkspaces initialWorkspaceState
+  workspaceNameDyn <- manageWorkspaces store initialWorkspaceState
   dyn_ . ffor workspaceNameDyn $ \workspaceName -> do
     actions0 <- getActions store workspaceName
     rec
