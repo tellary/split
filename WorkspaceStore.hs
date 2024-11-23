@@ -19,6 +19,7 @@ class WorkspaceStore s where
   getActions :: MonadIO m => s -> WorkspaceName -> m Actions
   deleteWorkspace :: MonadIO m => s -> WorkspaceName -> m ()
   getWorkspaces :: MonadIO m => s -> m [WorkspaceName]
+  migrate :: MonadIO m => s -> m ()
 
 data StubWorkspaceStore = StubWorkspaceStore
 
@@ -42,3 +43,4 @@ instance WorkspaceStore StubWorkspaceStore where
   deleteWorkspace _ workspace
     = trace ("deleteWorkspace: " ++ show workspace) $ return ()
   getWorkspaces _ = return [defaultWorkspaceName, "Coimbra trip"]
+  migrate _ = trace "migrate" $ return ()

@@ -5,7 +5,7 @@
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
-import           BrowserActionsStore
+import           BrowserWorkspaceStore
 import           Data.Aeson                (encode)
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import           Data.FileEmbed            (embedFile)
@@ -14,13 +14,14 @@ import           JavaScript.Web.Storage    (getItem, localStorage, setItem)
 import           MoneySplit
 import           Reflex.Dom
 import           SplitUI
+import           WorkspaceStore            (defaultWorkspaceName)
 
 main :: IO ()
 main = do
-  getItem "splitActions" localStorage >>= \case
+  getItem (workspaceKey defaultWorkspaceName) localStorage >>= \case
     Nothing -> do
       setItem
-        "splitActions"
+        (workspaceKey defaultWorkspaceName)
         (pack . UTF8.toString . encode $ actions3)
         localStorage
     Just _ -> do return ()
@@ -31,4 +32,4 @@ main = do
         $ text "split.apps.tellary.ru"
       text " application"
 
-    app BrowserActionsStore
+    app BrowserWorkspaceStore

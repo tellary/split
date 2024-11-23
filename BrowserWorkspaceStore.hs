@@ -57,3 +57,11 @@ instance WorkspaceStore BrowserWorkspaceStore where
             <$> mapM getIndexStr [0..len - 1]
     let prefixLength = length prefix
     return $ map (drop prefixLength) keys
+  migrate this = liftIO $ do
+    strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
+    case strMaybe of
+      Just str -> do
+        setItem (workspaceKey defaultWorkspaceName) str localStorage
+        removeItem (pack . UTF8.toString $ "splitActions") localStorage
+      Nothing -> return ()
+    

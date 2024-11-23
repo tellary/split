@@ -37,6 +37,7 @@ import           WorkspaceStore             (WorkspaceName,
                                              WorkspaceStore (deleteWorkspace,
                                                              getActions,
                                                              getWorkspaces,
+                                                             migrate,
                                                              putActions),
                                              defaultWorkspaceName)
 
@@ -1255,6 +1256,7 @@ app
      , PostBuild t m, MonadFix m, WorkspaceStore s, MonadIO m )
   => s -> m ()
 app store = do
+  migrate store
   workspaceNames <- getWorkspaces store
   let initialWorkspaceState = case workspaceNames of
         [] -> InitialWorkspaceState
