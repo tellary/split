@@ -1,3 +1,4 @@
+{-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -13,7 +14,6 @@ module SplitUI where
 import           Control.Lens               (view)
 import           Control.Monad              (join)
 import           Control.Monad.Fix          (MonadFix)
-import           Control.Monad.IO.Class     (MonadIO)
 import           Control.Monad.Trans.Except (runExceptT)
 import           Data.List                  (delete, elemIndex, find, (\\))
 import           Data.Map                   (Map)
@@ -38,7 +38,8 @@ import           WorkspaceStore             (WorkspaceName,
                                                              getActions,
                                                              getWorkspaces,
                                                              migrate,
-                                                             putActions),
+                                                             putActions,
+                                                             wipeWorkspace),
                                              defaultWorkspaceName)
 
 resettableInput
@@ -65,7 +66,6 @@ data WorkspaceState
   | MultipleWorkspaceState      WorkspaceName [WorkspaceName]
   | CreateNewWorkspaceState     WorkspaceName [WorkspaceName]
   | ConfirmDeleteWorkspaceState WorkspaceName [WorkspaceName]
-  | PerformDeleteWorkspaceState WorkspaceName WorkspaceName [WorkspaceName]
   | ConfirmWipeWorkspaceState   WorkspaceName [WorkspaceName]
   deriving Show
 
@@ -104,12 +104,10 @@ workspaceStateName CreateSecondWorkspaceState         = defaultWorkspaceName
 workspaceStateName (MultipleWorkspaceState      ws _) = ws
 workspaceStateName (CreateNewWorkspaceState     ws _) = ws
 workspaceStateName (ConfirmDeleteWorkspaceState ws _) = ws
-workspaceStateName (PerformDeleteWorkspaceState ws _ _) = ws
 workspaceStateName (ConfirmWipeWorkspaceState   ws _) = ws
 
 manageWorkspaces
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m
-     , MonadIO m, WorkspaceStore workspaceStore)
+  :: (MonadWidget t m, WorkspaceStore workspaceStore)
   => workspaceStore -> WorkspaceState -> m (Dynamic t WorkspaceName)
 manageWorkspaces workspaceStore initalWorkspaceState = do
   el "h2" $ text "Select workspace"
@@ -121,7 +119,7 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
   return . fmap workspaceStateName $ workspaceStateDyn
   where
     manageWorkspacesState
-      :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m, MonadIO m)
+      :: MonadWidget t m
       => WorkspaceState -> m (NewWorkspaceStateEvent t)
     manageWorkspacesState InitialWorkspaceState = el "p" $ do
       text . T.pack
@@ -143,10 +141,14 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
       el "p" $ text "Are you sure you want to wipe the default workspace? "
       el "p" $ do
         confirmWipeEv <- button "Yes, wipe the default workspace"
+        wipedEv <- performEvent
+                   ( wipeWorkspace workspaceStore defaultWorkspaceName
+                     <$ confirmWipeEv
+                   )
         cancelEv <- button "Cancel"
         return . leftmost $
           [ initialEv
-          , InitialWorkspaceState <$ confirmWipeEv
+          , InitialWorkspaceState <$ wipedEv
           , InitialWorkspaceState <$ cancelEv
           ]
     manageWorkspacesState CreateSecondWorkspaceState = do
@@ -203,15 +205,16 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
         confirmDeleteEv <- button . T.pack
           $ printf "Yes, delete the '%s' workspace" deleteWs
         cancelEv <- button "Cancel"
+        deletedEv <- performEvent
+                     ( deleteWorkspace workspaceStore deleteWs
+                       <$ confirmDeleteEv
+                     )
         let newWss = delete deleteWs wss
         return . leftmost $
           [ selectEv
-          , PerformDeleteWorkspaceState (head newWss) deleteWs newWss <$ confirmDeleteEv
-          , MultipleWorkspaceState deleteWs wss      <$ cancelEv
+          , MultipleWorkspaceState (head newWss) newWss <$ deletedEv
+          , MultipleWorkspaceState deleteWs wss         <$ cancelEv
           ]
-    manageWorkspacesState (PerformDeleteWorkspaceState ws deleteWs wss) = do
-      deleteWorkspace workspaceStore deleteWs
-      manageWorkspacesState $ MultipleWorkspaceState ws wss
     manageWorkspacesState (ConfirmWipeWorkspaceState wipeWs wss) = do
       selectEv <- manageWorkspacesState (MultipleWorkspaceState wipeWs wss)
       let wipeWsLabel = if wipeWs == defaultWorkspaceName
@@ -222,10 +225,12 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
       el "p" $ do
         confirmWipeEv <- button . T.pack
           $ printf "Yes, wipe the %s workspace" wipeWsLabel
+        wipedEv <- performEvent
+                   ( wipeWorkspace workspaceStore wipeWs <$ confirmWipeEv )
         cancelEv <- button "Cancel"
         return . leftmost $
           [ selectEv
-          , MultipleWorkspaceState wipeWs wss <$ confirmWipeEv
+          , MultipleWorkspaceState wipeWs wss <$ wipedEv
           , MultipleWorkspaceState wipeWs wss <$ cancelEv
           ]
 
@@ -1252,8 +1257,7 @@ manageActions actionsArr0 users groups = do
   return actions
 
 app
-  :: ( Reflex t, DomBuilder t m, MonadHold t m
-     , PostBuild t m, MonadFix m, WorkspaceStore s, MonadIO m )
+  :: ( MonadWidget t m, WorkspaceStore s)
   => s -> m ()
 app store = do
   migrate store

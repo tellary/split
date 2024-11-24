@@ -48,6 +48,8 @@ instance WorkspaceStore BrowserWorkspaceStore where
     = getJson "actions" (workspaceKey workspaceName) (Actions [] [] [])
   deleteWorkspace _ workspaceName
     = liftIO $ removeItem (workspaceKey workspaceName) localStorage
+  wipeWorkspace _ workspaceName
+    = setJson (workspaceKey workspaceName) (Actions [] [] [])
   getWorkspaces _ = liftIO $ do
     len <- getLength localStorage
     let prefix = "workspace_"
@@ -64,4 +66,3 @@ instance WorkspaceStore BrowserWorkspaceStore where
         setItem (workspaceKey defaultWorkspaceName) str localStorage
         removeItem (pack . UTF8.toString $ "splitActions") localStorage
       Nothing -> return ()
-    
