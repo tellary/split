@@ -43,6 +43,6 @@ async function updateDocument(url, prop, json) {
 
 async function findDocument(url, prop) {
     await automergeInitP
-    doc = await repo.find(url).doc()
+    var doc = await repo.find(url).doc()
     return JSON.stringify(doc[prop])
 }
