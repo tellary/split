@@ -51,6 +51,7 @@ in {
     src = ./.;
   };
 
+  # nix-shell -A ghcjs ./default.nix &
   ghcjs = ghcjsFor "split";
 
   ghcjsOysters202408 = ghcjsFor "oysters202408";
