@@ -18,7 +18,8 @@ automergeInitP = Promise.all([
     console.log("Automerge Wasm initialized")
     window.repo = new AutomergeRepo.Repo({
         storage: new IndexedDBStorageAdapter(),
-        network: [new BrowserWebSocketClientAdapter("wss://sync.automerge.org")],
+        // network: [new BrowserWebSocketClientAdapter("wss://sync.automerge.org")],
+        network: [new BrowserWebSocketClientAdapter("ws://localhost:3030")],
     })
     console.log("Automerge repo constructed")
 })
