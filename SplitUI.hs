@@ -33,8 +33,10 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              tagPromptlyValid, tagValid,
                                              unwrapValidDynamicDynamicWidget,
                                              unwrapValidDynamicWidget)
-import           WorkspaceStore             (WorkspaceName,
-                                             WorkspaceStore (deleteWorkspace,
+import           WorkspaceStore             (Workspace (workspaceId,
+                                                        workspaceName),
+                                             WorkspaceStore (createWorkspace,
+                                                             deleteWorkspace,
                                                              getActions,
                                                              getWorkspaces,
                                                              migrate,
@@ -60,19 +62,19 @@ resettableInput submitEvent validation = do
 type NewWorkspaceStateEvent t = Event t (WorkspaceState)
 
 data WorkspaceState
-  = InitialWorkspaceState
-  | ConfirmWipeInitialWorkspaceState
-  | CreateSecondWorkspaceState
-  | MultipleWorkspaceState      WorkspaceName [WorkspaceName]
-  | CreateNewWorkspaceState     WorkspaceName [WorkspaceName]
-  | ConfirmDeleteWorkspaceState WorkspaceName [WorkspaceName]
-  | ConfirmWipeWorkspaceState   WorkspaceName [WorkspaceName]
+  = InitialWorkspaceState Workspace
+  | ConfirmWipeInitialWorkspaceState Workspace
+  | CreateSecondWorkspaceState Workspace
+  | MultipleWorkspaceState      Workspace [Workspace]
+  | CreateNewWorkspaceState     Workspace [Workspace]
+  | ConfirmDeleteWorkspaceState Workspace [Workspace]
+  | ConfirmWipeWorkspaceState   Workspace [Workspace]
   deriving Show
 
 newWorkspace
-  :: (DomBuilder t m, MonadHold t m, PostBuild t m, MonadFix m)
-  => Bool -> WorkspaceName -> [WorkspaceName] -> m (NewWorkspaceStateEvent t)
-newWorkspace initState defWs wss = do
+  :: (MonadWidget t m, WorkspaceStore store)
+  => store -> Bool -> Workspace -> [Workspace] -> m (NewWorkspaceStateEvent t)
+newWorkspace store isInitState defWs wss = do
   text "New workspace name: "
   rec
     (ev, userInput) <- resettableInput addWorkspaceButton $
@@ -85,43 +87,44 @@ newWorkspace initState defWs wss = do
     addWorkspaceButton <- button "Add Workspace"
     cancelButton <- button "Cancel"
     dynText =<< (errorDyn "" addWorkspaceButton $ userInput)
+    workspaceAddedEv <- performEvent (createWorkspace store <$> tagValid userInput ev)
   return . leftmost $
     [ fmap
-      (\newWorkspaceName ->
+      (\newWorkspace ->
          MultipleWorkspaceState
-         newWorkspaceName
-         (wss ++ [newWorkspaceName])
+         newWorkspace
+         (wss ++ [newWorkspace])
       )
-      $ tagValid userInput ev
-    , if initState
-      then InitialWorkspaceState <$ cancelButton
+      $ workspaceAddedEv
+    , if isInitState
+      then InitialWorkspaceState defWs <$ cancelButton
       else MultipleWorkspaceState defWs wss <$ cancelButton
     ]
 
-workspaceStateName InitialWorkspaceState              = defaultWorkspaceName
-workspaceStateName ConfirmWipeInitialWorkspaceState   = defaultWorkspaceName
-workspaceStateName CreateSecondWorkspaceState         = defaultWorkspaceName
-workspaceStateName (MultipleWorkspaceState      ws _) = ws
-workspaceStateName (CreateNewWorkspaceState     ws _) = ws
-workspaceStateName (ConfirmDeleteWorkspaceState ws _) = ws
-workspaceStateName (ConfirmWipeWorkspaceState   ws _) = ws
+currentWorkspace (InitialWorkspaceState ws)            = ws
+currentWorkspace (ConfirmWipeInitialWorkspaceState ws)   = ws
+currentWorkspace (CreateSecondWorkspaceState ws)         = ws
+currentWorkspace (MultipleWorkspaceState      ws _) = ws
+currentWorkspace (CreateNewWorkspaceState     ws _) = ws
+currentWorkspace (ConfirmDeleteWorkspaceState ws _) = ws
+currentWorkspace (ConfirmWipeWorkspaceState   ws _) = ws
 
 manageWorkspaces
   :: (MonadWidget t m, WorkspaceStore workspaceStore)
-  => workspaceStore -> WorkspaceState -> m (Dynamic t WorkspaceName)
-manageWorkspaces workspaceStore initalWorkspaceState = do
+  => workspaceStore -> WorkspaceState -> m (Dynamic t Workspace)
+manageWorkspaces workspaceStore initialWorkspaceState = do
   el "h2" $ text "Select workspace"
   rec
     workspaceStateDyn :: Dynamic t WorkspaceState
-      <- foldDyn const initalWorkspaceState newWorkspaceStateEvent
+      <- foldDyn const initialWorkspaceState newWorkspaceStateEvent
     newWorkspaceStateEvent <- switchHold never =<< dyn do
       fmap manageWorkspacesState workspaceStateDyn
-  return . fmap workspaceStateName $ workspaceStateDyn
+  return . fmap currentWorkspace $ workspaceStateDyn
   where
     manageWorkspacesState
       :: MonadWidget t m
       => WorkspaceState -> m (NewWorkspaceStateEvent t)
-    manageWorkspacesState InitialWorkspaceState = el "p" $ do
+    manageWorkspacesState (InitialWorkspaceState initialWs) = el "p" $ do
       text . T.pack
         $  "Separate workspaces allow to track shared expenses "
         ++ "for different purpose and users. "
@@ -133,27 +136,27 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
                    $ text "wipe data of the default workspace"
       text "."
       return . leftmost $
-        [ CreateSecondWorkspaceState <$ domEvent Click elCreate
-        , ConfirmWipeInitialWorkspaceState <$ domEvent Click elWipe
+        [ CreateSecondWorkspaceState initialWs <$ domEvent Click elCreate
+        , ConfirmWipeInitialWorkspaceState initialWs <$ domEvent Click elWipe
         ]
-    manageWorkspacesState ConfirmWipeInitialWorkspaceState = do
-      initialEv <- manageWorkspacesState InitialWorkspaceState
+    manageWorkspacesState (ConfirmWipeInitialWorkspaceState initialWs) = do
+      initialEv <- manageWorkspacesState (InitialWorkspaceState initialWs)
       el "p" $ text "Are you sure you want to wipe the default workspace? "
       el "p" $ do
         confirmWipeEv <- button "Yes, wipe the default workspace"
         wipedEv <- performEvent
-                   ( wipeWorkspace workspaceStore defaultWorkspaceName
+                   ( wipeWorkspace workspaceStore (workspaceId initialWs)
                      <$ confirmWipeEv
                    )
         cancelEv <- button "Cancel"
         return . leftmost $
           [ initialEv
-          , InitialWorkspaceState <$ wipedEv
-          , InitialWorkspaceState <$ cancelEv
+          , InitialWorkspaceState initialWs <$ wipedEv
+          , InitialWorkspaceState initialWs <$ cancelEv
           ]
-    manageWorkspacesState CreateSecondWorkspaceState = do
-      initialEv <- manageWorkspacesState InitialWorkspaceState
-      newWsEv <- el "p" $ newWorkspace True defaultWorkspaceName [defaultWorkspaceName]
+    manageWorkspacesState (CreateSecondWorkspaceState defaultWs) = do
+      initialEv <- manageWorkspacesState (InitialWorkspaceState defaultWs)
+      newWsEv <- el "p" $ newWorkspace workspaceStore True defaultWs [defaultWs]
       return . leftmost $
         [ initialEv
         , newWsEv
@@ -171,14 +174,18 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
                                   . M.fromList
                                   $ zip
                                     [0..] -- Index is a key to preserve order
-                                    (map T.pack wss ++ ["<New workspace>"])
+                                    ( map (T.pack . workspaceName) wss
+                                      ++ ["<New workspace>"]
+                                    )
                                 )
                                 def
       deleteEv <-
-        case defWs of
-          "Default" -> fmap (True <$) $ button "Wipe the default workspace"
-          _ -> fmap (False <$) . button . T.pack
-               $ printf "Delete the '%s' workspace" defWs
+        case workspaceName defWs of
+          wsName | wsName == defaultWorkspaceName
+                   -> fmap (True <$) $ button "Wipe the default workspace"
+                 | otherwise
+                   -> fmap (False <$) . button . T.pack
+                   $ printf "Delete the '%s' workspace" (workspaceName defWs)
       return . leftmost $
         [ fmap ( \case
                    idx | idx == newIdx -> CreateNewWorkspaceState defWs      wss
@@ -192,7 +199,7 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
         ]
     manageWorkspacesState (CreateNewWorkspaceState defWs wss) = do
       selectEv <- manageWorkspacesState (MultipleWorkspaceState defWs wss)
-      addEv <- newWorkspace False defWs wss
+      addEv <- newWorkspace workspaceStore False defWs wss
       return . leftmost $
         [ selectEv
         , addEv
@@ -200,13 +207,14 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
     manageWorkspacesState (ConfirmDeleteWorkspaceState deleteWs wss) = do
       selectEv <- manageWorkspacesState (MultipleWorkspaceState deleteWs wss)
       el "p" . text . T.pack
-        $ printf "Are you sure you want to delete the '%s' workspace? " deleteWs
+        $ printf "Are you sure you want to delete the '%s' workspace? "
+          (workspaceName deleteWs)
       el "p" $ do
         confirmDeleteEv <- button . T.pack
-          $ printf "Yes, delete the '%s' workspace" deleteWs
+          $ printf "Yes, delete the '%s' workspace" (workspaceName deleteWs)
         cancelEv <- button "Cancel"
         deletedEv <- performEvent
-                     ( deleteWorkspace workspaceStore deleteWs
+                     ( deleteWorkspace workspaceStore (workspaceId deleteWs)
                        <$ confirmDeleteEv
                      )
         let newWss = delete deleteWs wss
@@ -217,16 +225,18 @@ manageWorkspaces workspaceStore initalWorkspaceState = do
           ]
     manageWorkspacesState (ConfirmWipeWorkspaceState wipeWs wss) = do
       selectEv <- manageWorkspacesState (MultipleWorkspaceState wipeWs wss)
-      let wipeWsLabel = if wipeWs == defaultWorkspaceName
+      let wipeWsLabel = if workspaceName wipeWs == defaultWorkspaceName
                         then "default" :: String
-                        else printf "'%s'" wipeWs
+                        else printf "'%s'" (workspaceName wipeWs)
       el "p" . text . T.pack
         $ printf "Are you sure you want to wipe the %s workspace? " wipeWsLabel
       el "p" $ do
         confirmWipeEv <- button . T.pack
           $ printf "Yes, wipe the %s workspace" wipeWsLabel
         wipedEv <- performEvent
-                   ( wipeWorkspace workspaceStore wipeWs <$ confirmWipeEv )
+                   ( wipeWorkspace workspaceStore (workspaceId wipeWs)
+                     <$ confirmWipeEv
+                   )
         cancelEv <- button "Cancel"
         return . leftmost $
           [ selectEv
@@ -1261,24 +1271,29 @@ app
   => s -> m ()
 app store = do
   migrate store
-  workspaceNames <- getWorkspaces store
-  let initialWorkspaceState = case workspaceNames of
-        [] -> InitialWorkspaceState
-        [ws] | ws == defaultWorkspaceName -> InitialWorkspaceState
+  workspaces0 <- getWorkspaces store
+  workspaces  <- if null workspaces0
+                 then do
+                   defWs <- createWorkspace store defaultWorkspaceName
+                   return [defWs]
+                 else return workspaces0
+  let initialWorkspaceState = case workspaces of
+        [] -> error "Not possible: a default workspace must exist already"
+        [ws] | workspaceName ws == defaultWorkspaceName -> InitialWorkspaceState ws
              | otherwise
                -> error
                 $ printf
                   "The last workspace must always be '%s'"
                   defaultWorkspaceName
         wss@(firstWs:_) -> MultipleWorkspaceState firstWs wss 
-  workspaceNameDyn <- manageWorkspaces store initialWorkspaceState
-  dyn_ . ffor workspaceNameDyn $ \workspaceName -> do
-    actions0 <- getActions store workspaceName
+  workspaceDyn <- manageWorkspaces store initialWorkspaceState
+  dyn_ . ffor workspaceDyn $ \workspace -> do
+    actions0 <- getActions store (workspaceId workspace)
     rec
       users <- manageUsers (actionsUsers actions0) actions
       groups <- manageGroups (actionsGroups actions0) actions users
       actions <- manageActions (actionsArr actions0) users groups
-    dyn_ (actions >>= (return . putActions store workspaceName))
+    dyn_ (actions >>= (return . putActions store (workspaceId workspace)))
     let nullified = (nullifyBalances . actionsToTransactions) <$> actions
     el "h2" $ text "Report"
     dyn_ (report <$> actions <*> nullified)

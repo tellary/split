@@ -10,16 +10,23 @@ import MoneySplit             (Action (ExpenseAction), Actions (Actions),
                                Expense (Expense), Split (SplitEquallyAll),
                                actions1, actions2, actions3)
 
+newtype WorkspaceId = WorkspaceId String deriving (Show, Eq)
 type WorkspaceName = String
+data Workspace
+  = Workspace
+  { workspaceId :: WorkspaceId
+  , workspaceName :: WorkspaceName
+  } deriving (Show, Eq)
 
 defaultWorkspaceName = "Default"
 
 class WorkspaceStore s where
-  putActions :: MonadIO m => s -> WorkspaceName -> Actions -> m ()
-  getActions :: MonadIO m => s -> WorkspaceName -> m Actions
-  deleteWorkspace :: MonadIO m => s -> WorkspaceName -> m ()
-  wipeWorkspace :: MonadIO m => s -> WorkspaceName -> m ()
-  getWorkspaces :: MonadIO m => s -> m [WorkspaceName]
+  createWorkspace :: MonadIO m => s -> WorkspaceName -> m Workspace
+  putActions :: MonadIO m => s -> WorkspaceId -> Actions -> m ()
+  getActions :: MonadIO m => s -> WorkspaceId -> m Actions
+  deleteWorkspace :: MonadIO m => s -> WorkspaceId -> m ()
+  wipeWorkspace :: MonadIO m => s -> WorkspaceId -> m ()
+  getWorkspaces :: MonadIO m => s -> m [Workspace]
   migrate :: MonadIO m => s -> m ()
 
 data StubWorkspaceStore = StubWorkspaceStore
@@ -33,17 +40,26 @@ defaultActions
     ]
 
 instance WorkspaceStore StubWorkspaceStore where
-  putActions _ workspaceName _
-    = trace ("putActions: " ++ workspaceName) $ return ()
-  getActions _ workspaceName
-    | workspaceName == defaultWorkspaceName = return defaultActions
-    | workspaceName == "Serge houseworming" = return actions1
-    | workspaceName == "Nick's birthday" = return actions2
-    | workspaceName == "Coimbra trip" = return actions3
+  createWorkspace _ workspaceName
+    = trace ("createWorkspace: " ++ workspaceName)
+    . return
+    $ Workspace (WorkspaceId (workspaceName ++ " (id)")) workspaceName
+  putActions _ (WorkspaceId workspaceId) _
+    = trace ("putActions: " ++ workspaceId) $ return ()
+  getActions _ (WorkspaceId workspaceId)
+    | workspaceId == "Default (id)" = return defaultActions
+    | workspaceId == "Serge houseworming (id)" = return actions1
+    | workspaceId == "Nick's birthday (id)" = return actions2
+    | workspaceId == "Coimbra trip (id)" = return actions3
     | otherwise = return $ Actions [] [] []
-  deleteWorkspace _ workspace
+  deleteWorkspace _ (WorkspaceId workspace)
     = trace ("deleteWorkspace: " ++ show workspace) $ return ()
-  wipeWorkspace _ workspace
+  wipeWorkspace _ (WorkspaceId workspace)
     = trace ("wipeWorkspace: " ++ show workspace) $ return ()
-  getWorkspaces _ = return [defaultWorkspaceName, "Coimbra trip"]
+  getWorkspaces _
+    = return
+    [ Workspace (WorkspaceId "Default (id)") defaultWorkspaceName
+    , Workspace (WorkspaceId "Coimbra trip (id)") "Coimbra trip"
+    ]
+
   migrate _ = trace "migrate" $ return ()

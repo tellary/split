@@ -42,23 +42,26 @@ getIndexStr i = liftIO $ do
   return $ fmap unpack jsStrMaybe
 
 instance WorkspaceStore BrowserWorkspaceStore where
-  putActions _ workspaceName actions
+  createWorkspace s workspaceName = do
+    return $ Workspace (WorkspaceId workspaceName) workspaceName
+  putActions s (WorkspaceId workspaceName) actions
     = setJson (workspaceKey workspaceName) actions
-  getActions _ workspaceName
+  getActions s (WorkspaceId workspaceName)
     = getJson "actions" (workspaceKey workspaceName) (Actions [] [] [])
-  deleteWorkspace _ workspaceName
+  deleteWorkspace s (WorkspaceId workspaceName)
     = liftIO $ removeItem (workspaceKey workspaceName) localStorage
-  wipeWorkspace _ workspaceName
+  wipeWorkspace s (WorkspaceId workspaceName)
     = setJson (workspaceKey workspaceName) (Actions [] [] [])
   getWorkspaces _ = liftIO $ do
     len <- getLength localStorage
     let prefix = "workspace_"
-    keys <- filter (prefix `isPrefixOf`)
+        prefixLength = length prefix
+    names <- map (drop prefixLength)
+            . filter (prefix `isPrefixOf`)
             . map fromJust
             . filter isJust
             <$> mapM getIndexStr [0..len - 1]
-    let prefixLength = length prefix
-    return $ map (drop prefixLength) keys
+    return $ zipWith Workspace (map WorkspaceId names) names
   migrate this = liftIO $ do
     strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
     case strMaybe of
