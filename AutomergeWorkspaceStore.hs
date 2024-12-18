@@ -5,7 +5,7 @@
 module AutomergeWorkspaceStore where
 
 import Automerge              (AutomergeUrl (AutomergeUrl), createDocument,
-                               deleteDocument, findDocument, updateDocument)
+                               findDocument, updateDocument)
 import BrowserWorkspaceStore  (BrowserWorkspaceStore (BrowserWorkspaceStore))
 import Control.Monad          (forM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -74,9 +74,11 @@ instance WorkspaceStore AutomergeWorkspaceStore where
     if null maybeActions
       then return $ Actions [] [] []
       else return . fromJust $ maybeActions
-  deleteWorkspace _ id@(WorkspaceId url) = liftIO $ do
-    deleteDocument (AutomergeUrl url)
-    removeItem (workspaceKey id) localStorage
+  deleteWorkspace _ workspaceId = liftIO $ do
+    -- Temprorary, we don't call 'deleteDocument'
+    -- Will figure out later if it makes sense.
+    -- Currently, deleting the workspace only detaches it in a specific browser.
+    removeItem (workspaceKey workspaceId) localStorage
   wipeWorkspace _ (WorkspaceId url)
     = liftIO $ updateDocument (AutomergeUrl url) "actions" (Actions [] [] [])
   getWorkspaces _ = liftIO $ do
