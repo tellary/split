@@ -45,5 +45,15 @@ async function updateDocument(url, prop, json) {
 async function findDocument(url, prop) {
     await automergeInitP
     var doc = await repo.find(url).doc()
-    return JSON.stringify(doc[prop])
+    if (!doc)
+        return null
+    var propVal = doc[prop]
+    if (!propVal)
+        return null
+    return JSON.stringify(propVal)
+}
+
+async function deleteDocument(url) {
+    await automergeInitP
+    repo.delete(url)
 }

@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
+{-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
 module BrowserWorkspaceStore where
 
@@ -42,15 +45,15 @@ getIndexStr i = liftIO $ do
   return $ fmap unpack jsStrMaybe
 
 instance WorkspaceStore BrowserWorkspaceStore where
-  createWorkspace s workspaceName = do
+  createWorkspace _ workspaceName = do
     return $ Workspace (WorkspaceId workspaceName) workspaceName
-  putActions s (WorkspaceId workspaceName) actions
+  putActions _ (WorkspaceId workspaceName) actions
     = setJson (workspaceKey workspaceName) actions
-  getActions s (WorkspaceId workspaceName)
+  getActions _ (WorkspaceId workspaceName)
     = getJson "actions" (workspaceKey workspaceName) (Actions [] [] [])
-  deleteWorkspace s (WorkspaceId workspaceName)
+  deleteWorkspace _ (WorkspaceId workspaceName)
     = liftIO $ removeItem (workspaceKey workspaceName) localStorage
-  wipeWorkspace s (WorkspaceId workspaceName)
+  wipeWorkspace _ (WorkspaceId workspaceName)
     = setJson (workspaceKey workspaceName) (Actions [] [] [])
   getWorkspaces _ = liftIO $ do
     len <- getLength localStorage
@@ -62,7 +65,7 @@ instance WorkspaceStore BrowserWorkspaceStore where
             . filter isJust
             <$> mapM getIndexStr [0..len - 1]
     return $ zipWith Workspace (map WorkspaceId names) names
-  migrate this = liftIO $ do
+  migrate _ = liftIO $ do
     strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
     case strMaybe of
       Just str -> do

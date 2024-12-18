@@ -62,13 +62,13 @@ resettableInput submitEvent validation = do
 type NewWorkspaceStateEvent t = Event t (WorkspaceState)
 
 data WorkspaceState
-  = InitialWorkspaceState Workspace
+  = InitialWorkspaceState            Workspace
   | ConfirmWipeInitialWorkspaceState Workspace
-  | CreateSecondWorkspaceState Workspace
-  | MultipleWorkspaceState      Workspace [Workspace]
-  | CreateNewWorkspaceState     Workspace [Workspace]
-  | ConfirmDeleteWorkspaceState Workspace [Workspace]
-  | ConfirmWipeWorkspaceState   Workspace [Workspace]
+  | CreateSecondWorkspaceState       Workspace
+  | MultipleWorkspaceState           Workspace [Workspace]
+  | CreateNewWorkspaceState          Workspace [Workspace]
+  | ConfirmDeleteWorkspaceState      Workspace [Workspace]
+  | ConfirmWipeWorkspaceState        Workspace [Workspace]
   deriving Show
 
 newWorkspace
@@ -102,12 +102,12 @@ newWorkspace store isInitState defWs wss = do
     ]
 
 currentWorkspace (InitialWorkspaceState ws)            = ws
-currentWorkspace (ConfirmWipeInitialWorkspaceState ws)   = ws
-currentWorkspace (CreateSecondWorkspaceState ws)         = ws
-currentWorkspace (MultipleWorkspaceState      ws _) = ws
-currentWorkspace (CreateNewWorkspaceState     ws _) = ws
-currentWorkspace (ConfirmDeleteWorkspaceState ws _) = ws
-currentWorkspace (ConfirmWipeWorkspaceState   ws _) = ws
+currentWorkspace (ConfirmWipeInitialWorkspaceState ws) = ws
+currentWorkspace (CreateSecondWorkspaceState ws)       = ws
+currentWorkspace (MultipleWorkspaceState      ws _)    = ws
+currentWorkspace (CreateNewWorkspaceState     ws _)    = ws
+currentWorkspace (ConfirmDeleteWorkspaceState ws _)    = ws
+currentWorkspace (ConfirmWipeWorkspaceState   ws _)    = ws
 
 manageWorkspaces
   :: (MonadWidget t m, WorkspaceStore workspaceStore)
