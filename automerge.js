@@ -44,6 +44,8 @@ async function updateDocument(url, prop, json) {
 
 async function findDocument(url, prop) {
     await automergeInitP
+    if (!AutomergeRepo.isValidAutomergeUrl(url))
+        return null
     var doc = await repo.find(url).doc()
     if (!doc)
         return null

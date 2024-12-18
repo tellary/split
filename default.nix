@@ -22,7 +22,7 @@ let pkgs = import
       utf8-string
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
-  ghcjs = reflex-platform.ghcjs.ghcWithPackages (pkgs: with pkgs; deps pkgs ++ [ghcjs-base]);
+  ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;
   closure-compiler = pkgs.closure-compiler;
   ghcjsFor = execName : pkgs.stdenv.mkDerivation {
     name = "money-split";

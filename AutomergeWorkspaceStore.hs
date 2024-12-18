@@ -43,6 +43,20 @@ workspaceNameByUrl url = do
     . maybe (error "workspaceNameByUrl: missing key: " ++ workspaceKeyStr url) unpack
     $ jsStrMaybe
 
+addExternalWorkspace (AutomergeUrl url) = do
+  let wsId = WorkspaceId url
+  wss <- getWorkspaces AutomergeWorkspaceStore
+  case filter (\ws -> workspaceId ws == wsId) wss of
+    [existingWs] -> return . Just $ existingWs
+    [] -> do
+      maybeWsName <- findDocument (AutomergeUrl url) "workspaceName"
+      case maybeWsName of
+        Just wsName -> do
+          setItem (workspaceKey wsId) (pack $ wsName) localStorage
+          return . Just $ Workspace wsId wsName
+        Nothing -> return Nothing
+    (_:_) -> error "addExternalWorkspace: workspaces are unique"
+
 -- | 'automerge.org' based implementation of persistance
 --
 -- This initial implementation sets entire `actions` JSON instead of making fine

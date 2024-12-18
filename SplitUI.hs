@@ -35,6 +35,7 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              unwrapValidDynamicWidget)
 import           WorkspaceStore             (Workspace (workspaceId,
                                                         workspaceName),
+                                             WorkspaceId,
                                              WorkspaceStore (createWorkspace,
                                                              deleteWorkspace,
                                                              getActions,
@@ -1268,8 +1269,8 @@ manageActions actionsArr0 users groups = do
 
 app
   :: ( MonadWidget t m, WorkspaceStore s)
-  => s -> m ()
-app store = do
+  => s -> Maybe WorkspaceId -> m ()
+app store maybeFirstWsId = do
   migrate store
   workspaces0 <- getWorkspaces store
   workspaces  <- if null workspaces0
@@ -1277,6 +1278,13 @@ app store = do
                    defWs <- createWorkspace store defaultWorkspaceName
                    return [defWs]
                  else return workspaces0
+  let firstWs = case maybeFirstWsId of
+        Just firstWsId
+          -> case filter (\ws -> workspaceId ws == firstWsId) $ workspaces of
+               [ws] -> ws
+               [] -> head workspaces
+               (_:_) -> error "app: workspaces must be unique"
+        Nothing -> head workspaces
   let initialWorkspaceState = case workspaces of
         [] -> error "Not possible: a default workspace must exist already"
         [ws] | workspaceName ws == defaultWorkspaceName -> InitialWorkspaceState ws
@@ -1285,7 +1293,7 @@ app store = do
                 $ printf
                   "The last workspace must always be '%s'"
                   defaultWorkspaceName
-        wss@(firstWs:_) -> MultipleWorkspaceState firstWs wss 
+        wss -> MultipleWorkspaceState firstWs wss
   workspaceDyn <- manageWorkspaces store initialWorkspaceState
   dyn_ . ffor workspaceDyn $ \workspace -> do
     actions0 <- getActions store (workspaceId workspace)
