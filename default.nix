@@ -30,7 +30,7 @@ let pkgs = import
     src = ./.;
     phases = [ "unpackPhase" "buildPhase" "installPhase" "postInstall" ];
     unpackPhase = ''
-      cp $src/*.hs $src/split.css $src/publish_report.sh $src/website.json .'';
+      cp $src/*.hs $src/automerge.js $src/split.css $src/publish_report.sh $src/website.json .'';
     buildPhase = ''
       ghcjs ${execName}.hs
     '';
@@ -41,6 +41,7 @@ let pkgs = import
       closure-compiler -W QUIET --js all.js --js_output_file all.min.js
       popd
       cp publish_report.sh website.json $out/
+      cp automerge.js $out/${execName}.jsexe/
     '';
     postInstall = "cp $src/html/* $out/${execName}.jsexe/";
   };
