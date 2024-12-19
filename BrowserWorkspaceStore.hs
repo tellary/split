@@ -1,12 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# OPTIONS_GHC -Wno-missing-signatures -Wno-unused-top-binds #-}
 {-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-do-bind #-}
 
 module BrowserWorkspaceStore where
 
+import           Control.Monad             (forM_)
 import           Control.Monad.IO.Class    (MonadIO, liftIO)
-import           Data.Aeson                (FromJSON, decode, encode)
+import           Data.Aeson                (FromJSON, eitherDecode, encode)
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import           Data.JSString             (JSString, pack, unpack)
 import           Data.List                 (isPrefixOf)
@@ -27,17 +30,15 @@ setJson key value = liftIO $ do
     (pack . UTF8.toString . encode $ value)
     localStorage
 
-getJson :: (MonadIO m, FromJSON a) => String -> JSString -> a -> m a
-getJson valueType key defaultValue = liftIO $ do
+getJson :: (MonadIO m, FromJSON a)
+  => JSString -> m (Either String a)
+getJson key = liftIO $ do
   strMaybe <- getItem key localStorage
   case strMaybe of
     Just str -> do
       let bs = UTF8.fromString . unpack $ str
-      case decode bs of
-        Just result -> return result
-        Nothing -> error
-                   $ printf "Failed to read %s from browser storage" valueType
-    Nothing -> return defaultValue
+      return . eitherDecode $ bs
+    Nothing -> return . Left $ printf "Workpace key '%s' doesn't exist'" (unpack key)
 
 getIndexStr :: MonadIO m => Int -> m (Maybe String)
 getIndexStr i = liftIO $ do
@@ -50,7 +51,15 @@ instance WorkspaceStore BrowserWorkspaceStore where
   putActions _ (WorkspaceId workspaceName) actions
     = setJson (workspaceKey workspaceName) actions
   getActions _ (WorkspaceId workspaceName)
-    = getJson "actions" (workspaceKey workspaceName) (Actions [] [] [])
+    = getJson (workspaceKey workspaceName) >>= \case
+        Left err -> do
+          liftIO . putStrLn
+            $ printf
+              ( "Failed to parse actions for workspace '%s' "
+                ++ " returning empty actions, error: %s" )
+              workspaceName err
+          return $ Actions [] [] []
+        Right a -> return a
   deleteWorkspace _ (WorkspaceId workspaceName)
     = liftIO $ removeItem (workspaceKey workspaceName) localStorage
   wipeWorkspace _ (WorkspaceId workspaceName)
@@ -65,10 +74,30 @@ instance WorkspaceStore BrowserWorkspaceStore where
             . filter isJust
             <$> mapM getIndexStr [0..len - 1]
     return $ zipWith Workspace (map WorkspaceId names) names
-  migrate _ = liftIO $ do
-    strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
-    case strMaybe of
-      Just str -> do
-        setItem (workspaceKey defaultWorkspaceName) str localStorage
-        removeItem (pack . UTF8.toString $ "splitActions") localStorage
-      Nothing -> return ()
+  migrate this = do
+    liftIO $ do
+      strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
+      case strMaybe of
+        Just str -> do
+          setItem (workspaceKey defaultWorkspaceName) str localStorage
+          removeItem (pack . UTF8.toString $ "splitActions") localStorage
+        Nothing -> return ()
+    -- Make sure we can read all workspaces: Delete unreadable workspaces.
+    wss <- getWorkspaces this
+    forM_ wss $ \ws -> do
+      let (WorkspaceId wsName) = workspaceId ws
+      actions :: Either String Actions <- getJson (workspaceKey wsName)
+      case actions of
+        Right _ -> return ()
+        Left err -> do
+          liftIO . putStrLn
+            $ printf
+              ( "Failed to parse actions for workspace '%s' "
+                ++ "deleting the workspace, error: %s" )
+              wsName err
+          deleteWorkspace this (workspaceId ws)
+    -- But make sure that the 'Default' workspace exists
+    wss2 <- getWorkspaces this
+    if null . filter (\ws -> workspaceName ws == "Default") $ wss2
+      then putActions this (WorkspaceId "Default") (Actions [] [] [])
+      else return ()

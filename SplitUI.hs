@@ -1286,14 +1286,9 @@ app store maybeFirstWsId = do
                (_:_) -> error "app: workspaces must be unique"
         Nothing -> head workspaces
   let initialWorkspaceState = case workspaces of
-        [] -> error "Not possible: a default workspace must exist already"
-        [ws] | workspaceName ws == defaultWorkspaceName -> InitialWorkspaceState ws
-             | otherwise
-               -> error
-                $ printf
-                  "The last workspace must always be '%s'"
-                  defaultWorkspaceName
-        wss -> MultipleWorkspaceState firstWs wss
+        []   -> error "Not possible: a default workspace must exist already"
+        [ws] -> InitialWorkspaceState ws
+        wss  -> MultipleWorkspaceState firstWs wss
   workspaceDyn <- manageWorkspaces store initialWorkspaceState
   dyn_ . ffor workspaceDyn $ \workspace -> do
     actions0 <- getActions store (workspaceId workspace)
