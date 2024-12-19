@@ -96,8 +96,4 @@ instance WorkspaceStore BrowserWorkspaceStore where
                 ++ "deleting the workspace, error: %s" )
               wsName err
           deleteWorkspace this (workspaceId ws)
-    -- But make sure that the 'Default' workspace exists
-    wss2 <- getWorkspaces this
-    if null . filter (\ws -> workspaceName ws == "Default") $ wss2
-      then putActions this (WorkspaceId "Default") (Actions [] [] [])
-      else return ()
+    workspaceStoreCleanup this

@@ -317,6 +317,9 @@ data Actions
 instance FromJSON Actions
 instance ToJSON Actions
 
+actionsAreEmpty (Actions users groups actions)
+  = null users && null groups && null actions
+
 splitTosToAccounts :: Actions -> [SplitTo] -> [Account]
 splitTosToAccounts actions
   = usersToAccounts actions . map (head . splitToToUsers)

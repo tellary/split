@@ -7,7 +7,6 @@ module AutomergeWorkspaceStore where
 import Automerge              (AutomergeUrl (AutomergeUrl), createDocument,
                                findDocument, updateDocument)
 import BrowserWorkspaceStore  (BrowserWorkspaceStore (BrowserWorkspaceStore))
-import Control.Monad          (forM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.JSString          (JSString, pack, unpack)
 import Data.List              (isPrefixOf)
@@ -15,13 +14,13 @@ import Data.Maybe             (fromJust, isJust)
 import JavaScript.Web.Storage (getIndex, getItem, getLength, localStorage,
                                removeItem, setItem)
 import MoneySplit             (Actions (Actions))
-import WorkspaceStore         (Workspace (Workspace, workspaceId,
-                                          workspaceName),
+import WorkspaceStore         (Workspace (Workspace, workspaceId),
                                WorkspaceId (WorkspaceId),
                                WorkspaceStore (createWorkspace, deleteWorkspace,
                                                getActions, getWorkspaces,
                                                migrate, putActions,
-                                               wipeWorkspace))
+                                               wipeWorkspace),
+                               copyWorkspaces, workspaceStoreCleanup)
 
 data AutomergeWorkspaceStore = AutomergeWorkspaceStore
 
@@ -92,9 +91,6 @@ instance WorkspaceStore AutomergeWorkspaceStore where
     return $ zipWith Workspace (map WorkspaceId urls) names
   migrate this = do
     migrate BrowserWorkspaceStore
-    oldWss <- getWorkspaces BrowserWorkspaceStore
-    forM_ oldWss $ \oldWs -> do
-      newWs <- createWorkspace this (workspaceName oldWs)
-      actions <- getActions BrowserWorkspaceStore (workspaceId oldWs)
-      putActions this (workspaceId newWs) actions
-      deleteWorkspace BrowserWorkspaceStore (workspaceId oldWs)
+    copyWorkspaces BrowserWorkspaceStore this
+    workspaceStoreCleanup this
+
