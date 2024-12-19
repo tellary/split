@@ -4,11 +4,12 @@
 
 module WorkspaceStore where
 
+import Control.Monad          (filterM, forM_)
 import Control.Monad.IO.Class (MonadIO)
 import Debug.Trace            (trace)
 import MoneySplit             (Action (ExpenseAction), Actions (Actions),
                                Expense (Expense), Split (SplitEquallyAll),
-                               actions1, actions2, actions3)
+                               actions1, actions2, actions3, actionsAreEmpty)
 
 newtype WorkspaceId = WorkspaceId String deriving (Show, Eq)
 type WorkspaceName = String
@@ -28,6 +29,46 @@ class WorkspaceStore s where
   wipeWorkspace :: MonadIO m => s -> WorkspaceId -> m ()
   getWorkspaces :: MonadIO m => s -> m [Workspace]
   migrate :: MonadIO m => s -> m ()
+
+-- | Make sure that the 'Default' workspace exists
+createDefaultWorkspace store = do
+  wss <- getWorkspaces store
+  if null . filter (\ws -> workspaceName ws == defaultWorkspaceName) $ wss
+    then do
+      ws <- createWorkspace store defaultWorkspaceName
+      putActions store (workspaceId ws) (Actions [] [] [])
+    else return ()
+
+removeEmptyDefaultWorkspaces store = do
+  wss <- getWorkspaces store
+  let defaultWss
+        = filter (\ws -> workspaceName ws == defaultWorkspaceName) $ wss
+  if length defaultWss == 1
+    then return ()
+    else do
+      emptyDefaultWss <- filterM
+        ( \ws -> do
+            actions <- getActions store (workspaceId ws)
+            return $ actionsAreEmpty actions
+        ) $ defaultWss
+      let emptyDefaultWssToRemove
+            = if length emptyDefaultWss == length defaultWss
+              then tail emptyDefaultWss
+              else emptyDefaultWss
+      forM_ emptyDefaultWssToRemove $ \ws -> do
+        deleteWorkspace store (workspaceId ws)
+
+workspaceStoreCleanup store = do
+  createDefaultWorkspace store
+  removeEmptyDefaultWorkspaces store
+
+copyWorkspaces oldStore newStore = do
+  oldWss <- getWorkspaces oldStore
+  forM_ oldWss $ \oldWs -> do
+    newWs <- createWorkspace newStore (workspaceName oldWs)
+    actions <- getActions oldStore (workspaceId oldWs)
+    putActions newStore (workspaceId newWs) actions
+    deleteWorkspace oldStore (workspaceId oldWs)
 
 data StubWorkspaceStore = StubWorkspaceStore
 

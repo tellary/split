@@ -10,7 +10,7 @@ DEST="${3:-}"
 nix-build -A $TARGET
 
 BUCKET=split.apps.tellary.ru
-FILES='index.html runmain.js all.min.js'
+FILES='index.html runmain.js all.min.js automerge.js'
 
 aws s3api put-bucket-website --bucket $BUCKET --website-configuration file://website.json
 
