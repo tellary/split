@@ -42,5 +42,7 @@ main = do
         restoreEv <- button "Restore default workspace"
         performEvent ((liftIO restoreDefaultWorkspace) <$ restoreEv)
 
-    widgetHold (app BrowserWorkspaceStore) (app BrowserWorkspaceStore <$ restoreEv)
+    widgetHold
+      (app BrowserWorkspaceStore Nothing)
+      (app BrowserWorkspaceStore Nothing <$ restoreEv)
     return ()
