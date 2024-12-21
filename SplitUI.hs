@@ -112,14 +112,18 @@ currentWorkspace (ConfirmWipeWorkspaceState   ws _)    = ws
 
 manageWorkspaces
   :: (MonadWidget t m, WorkspaceStore workspaceStore)
-  => workspaceStore -> WorkspaceState -> m (Dynamic t Workspace)
-manageWorkspaces workspaceStore initialWorkspaceState = do
+  => workspaceStore -> m () -> WorkspaceState
+  -> m (Dynamic t Workspace)
+manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = do
   el "h2" $ text "Select workspace"
   rec
     workspaceStateDyn :: Dynamic t WorkspaceState
       <- foldDyn const initialWorkspaceState newWorkspaceStateEvent
     newWorkspaceStateEvent <- switchHold never =<< dyn do
-      fmap manageWorkspacesState workspaceStateDyn
+      ffor workspaceStateDyn $ \wsState -> do
+        ev <- manageWorkspacesState wsState
+        copyShareWorkspaceLink
+        return ev
   return . fmap currentWorkspace $ workspaceStateDyn
   where
     manageWorkspacesState
@@ -1268,9 +1272,9 @@ manageActions actionsArr0 users groups = do
   return actions
 
 app
-  :: ( MonadWidget t m, WorkspaceStore s)
-  => s -> Maybe WorkspaceId -> m ()
-app store maybeFirstWsId = do
+  :: (MonadWidget t m, WorkspaceStore s)
+  => s -> (Workspace -> m ()) -> m () -> Maybe WorkspaceId -> m ()
+app store onWsChange copyShareWorkspaceLink maybeFirstWsId = do
   migrate store
   workspaces0 <- getWorkspaces store
   workspaces  <- if null workspaces0
@@ -1289,8 +1293,10 @@ app store maybeFirstWsId = do
         []   -> error "Not possible: a default workspace must exist already"
         [ws] -> InitialWorkspaceState ws
         wss  -> MultipleWorkspaceState firstWs wss
-  workspaceDyn <- manageWorkspaces store initialWorkspaceState
+  workspaceDyn <- manageWorkspaces
+                  store copyShareWorkspaceLink initialWorkspaceState
   dyn_ . ffor workspaceDyn $ \workspace -> do
+    onWsChange workspace
     actions0 <- getActions store (workspaceId workspace)
     rec
       users <- manageUsers (actionsUsers actions0) actions

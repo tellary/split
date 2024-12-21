@@ -43,6 +43,11 @@ main = do
         performEvent ((liftIO restoreDefaultWorkspace) <$ restoreEv)
 
     widgetHold
-      (app BrowserWorkspaceStore Nothing)
-      (app BrowserWorkspaceStore Nothing <$ restoreEv)
+      ( app BrowserWorkspaceStore (\_ -> return ()) (return ()) Nothing )
+      ( app
+        BrowserWorkspaceStore
+        (\_ -> return ()) (return ())
+        Nothing
+        <$ restoreEv
+      )
     return ()

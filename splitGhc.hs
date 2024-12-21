@@ -6,4 +6,11 @@ import SplitUI        (app)
 import WorkspaceStore (StubWorkspaceStore (StubWorkspaceStore))
 
 main :: IO ()
-main = mainWidgetWithCss $(embedFile "split.css") (app StubWorkspaceStore)
+main
+  = mainWidgetWithCss $(embedFile "split.css")
+    ( app
+      StubWorkspaceStore
+      (\_ -> return ())
+      (return ())
+      Nothing
+    )
