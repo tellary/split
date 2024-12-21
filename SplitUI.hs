@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecursiveDo #-}
@@ -110,16 +111,30 @@ currentWorkspace (CreateNewWorkspaceState     ws _)    = ws
 currentWorkspace (ConfirmDeleteWorkspaceState ws _)    = ws
 currentWorkspace (ConfirmWipeWorkspaceState   ws _)    = ws
 
+copyShareWorkspaceLink :: (MonadWidget t m) => (Bool -> m String) -> m ()
+copyShareWorkspaceLink getFullUrl = el "p" $ do
+  fullUrl <- getFullUrl False
+  (copyEl, _) <- elAttr' "a" ("href" =: T.pack fullUrl) $ text "Copy"
+  widgetHold (return ()) (do { url <- getFullUrl True; text . T.pack $ url; } <$ domEvent Click copyEl)
+  text . T.pack
+    $ " the workspace URL to use it on another device "
+    ++ " or to share it with friends, "
+    ++ " so that they can view and edit the workspace"
+
 manageWorkspaces
   :: (MonadWidget t m, WorkspaceStore workspaceStore)
-  => workspaceStore -> WorkspaceState -> m (Dynamic t Workspace)
-manageWorkspaces workspaceStore initialWorkspaceState = do
+  => workspaceStore -> (Bool -> m String) -> WorkspaceState
+  -> m (Dynamic t Workspace)
+manageWorkspaces workspaceStore getFullUrl initialWorkspaceState = do
   el "h2" $ text "Select workspace"
   rec
     workspaceStateDyn :: Dynamic t WorkspaceState
       <- foldDyn const initialWorkspaceState newWorkspaceStateEvent
     newWorkspaceStateEvent <- switchHold never =<< dyn do
-      fmap manageWorkspacesState workspaceStateDyn
+      ffor workspaceStateDyn $ \wsState -> do
+        ev <- manageWorkspacesState wsState
+        copyShareWorkspaceLink getFullUrl
+        return ev
   return . fmap currentWorkspace $ workspaceStateDyn
   where
     manageWorkspacesState
@@ -1268,9 +1283,9 @@ manageActions actionsArr0 users groups = do
   return actions
 
 app
-  :: ( MonadWidget t m, WorkspaceStore s)
-  => s -> Maybe WorkspaceId -> m ()
-app store maybeFirstWsId = do
+  :: (MonadWidget t m, WorkspaceStore s)
+  => s -> (Event t Workspace -> m ()) -> (Bool -> m String) -> Maybe WorkspaceId -> m ()
+app store onWsChange getFullUrl maybeFirstWsId = do
   migrate store
   workspaces0 <- getWorkspaces store
   workspaces  <- if null workspaces0
@@ -1289,7 +1304,8 @@ app store maybeFirstWsId = do
         []   -> error "Not possible: a default workspace must exist already"
         [ws] -> InitialWorkspaceState ws
         wss  -> MultipleWorkspaceState firstWs wss
-  workspaceDyn <- manageWorkspaces store initialWorkspaceState
+  workspaceDyn <- manageWorkspaces store getFullUrl initialWorkspaceState
+  onWsChange . updated $ workspaceDyn
   dyn_ . ffor workspaceDyn $ \workspace -> do
     actions0 <- getActions store (workspaceId workspace)
     rec
@@ -1301,3 +1317,4 @@ app store maybeFirstWsId = do
     el "h2" $ text "Report"
     dyn_ (report <$> actions <*> nullified)
     return ()
+

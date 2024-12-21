@@ -6,6 +6,7 @@ sunday are closed
 
 [User spend is improperly reported if the user pays tips but has no items in an itemized split] is 0% completed
 then [Report error on failure to read data from browser storage] is 0% completed
+then [Allow to delete a 'Default' workspace if there are 2 or more 'Default' workspaces]
 then [Don't add purchase when only one user group exists] is 0% completed
 then [Custom tips amount] is 0% completed
 then [Edit split items] is 0% completed
