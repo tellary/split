@@ -4,12 +4,13 @@
 
 module WorkspaceStore where
 
-import Control.Monad          (filterM, forM_)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Monad          (filterM, forM_, when)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Debug.Trace            (trace)
 import MoneySplit             (Action (ExpenseAction), Actions (Actions),
                                Expense (Expense), Split (SplitEquallyAll),
                                actions1, actions2, actions3, actionsAreEmpty)
+import Text.Printf            (printf)
 
 newtype WorkspaceId = WorkspaceId String deriving (Show, Eq)
 type WorkspaceName = String
@@ -21,7 +22,7 @@ data Workspace
 
 defaultWorkspaceName = "Default"
 
-class WorkspaceStore s where
+class Show s => WorkspaceStore s where
   createWorkspace :: MonadIO m => s -> WorkspaceName -> m Workspace
   putActions :: MonadIO m => s -> WorkspaceId -> Actions -> m ()
   getActions :: MonadIO m => s -> WorkspaceId -> m Actions
@@ -35,9 +36,17 @@ createDefaultWorkspace store = do
   wss <- getWorkspaces store
   if null . filter (\ws -> workspaceName ws == defaultWorkspaceName) $ wss
     then do
+      liftIO . putStrLn
+        $ printf
+          "createDefaultWorkspace: %s: No default workspace found"
+          (show store)
       ws <- createWorkspace store defaultWorkspaceName
       putActions store (workspaceId ws) (Actions [] [] [])
-    else return ()
+    else do
+      liftIO . putStrLn
+        $ printf
+          "createDefaultWorkspace: %s: '%s' workspace found"
+          (show store) defaultWorkspaceName
 
 removeEmptyDefaultWorkspaces store = do
   wss <- getWorkspaces store
@@ -53,24 +62,33 @@ removeEmptyDefaultWorkspaces store = do
         ) $ defaultWss
       let emptyDefaultWssToRemove
             = if length emptyDefaultWss == length defaultWss
+                 && not (null emptyDefaultWss)
               then tail emptyDefaultWss
               else emptyDefaultWss
       forM_ emptyDefaultWssToRemove $ \ws -> do
         deleteWorkspace store (workspaceId ws)
 
-workspaceStoreCleanup store = do
-  createDefaultWorkspace store
+workspaceStoreCleanup store finalMigrationStep = do
+  when finalMigrationStep $ createDefaultWorkspace store
   removeEmptyDefaultWorkspaces store
 
 copyWorkspaces oldStore newStore = do
   oldWss <- getWorkspaces oldStore
+  newWss <- getWorkspaces newStore
   forM_ oldWss $ \oldWs -> do
-    newWs <- createWorkspace newStore (workspaceName oldWs)
-    actions <- getActions oldStore (workspaceId oldWs)
-    putActions newStore (workspaceId newWs) actions
+    when (not $ oldWs `elem` newWss) $ do
+      liftIO . putStrLn
+        $ printf
+          ( "copyWorkspaces: Old workspace '%s' from %s "
+            ++ "doesn't exist in new WorkspaceStore %s"
+          )
+          (show oldWs) (show oldStore) (show newStore)
+      newWs <- createWorkspace newStore (workspaceName oldWs)
+      actions <- getActions oldStore (workspaceId oldWs)
+      putActions newStore (workspaceId newWs) actions
     deleteWorkspace oldStore (workspaceId oldWs)
 
-data StubWorkspaceStore = StubWorkspaceStore
+data StubWorkspaceStore = StubWorkspaceStore deriving Show
 
 defaultActions
   = Actions

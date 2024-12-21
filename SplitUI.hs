@@ -14,6 +14,7 @@ module SplitUI where
 import           Control.Lens               (view)
 import           Control.Monad              (join)
 import           Control.Monad.Fix          (MonadFix)
+import           Control.Monad.IO.Class     (MonadIO (liftIO))
 import           Control.Monad.Trans.Except (runExceptT)
 import           Data.List                  (delete, elemIndex, find, (\\))
 import           Data.Map                   (Map)
@@ -1279,6 +1280,10 @@ app store onWsChange copyShareWorkspaceLink maybeFirstWsId = do
   workspaces0 <- getWorkspaces store
   workspaces  <- if null workspaces0
                  then do
+                   liftIO. putStrLn
+                     $ printf
+                       "No workspaces found, creating new '%s' workspace"
+                       defaultWorkspaceName
                    defWs <- createWorkspace store defaultWorkspaceName
                    return [defWs]
                  else return workspaces0

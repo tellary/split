@@ -31,6 +31,7 @@ async function createDocument(prop, json) {
     var holder = {}
     holder[prop] = data
     var h = repo.create(holder)
+    console.log("Created document: " + h.url)
     return h.url
 }
 

@@ -20,7 +20,7 @@ import           MoneySplit                (Actions (Actions))
 import           Text.Printf               (printf)
 import           WorkspaceStore
 
-data BrowserWorkspaceStore = BrowserWorkspaceStore
+data BrowserWorkspaceStore = BrowserWorkspaceStore deriving Show
 
 workspaceKey workspaceName = pack $ "workspace_" ++ workspaceName
 
@@ -44,6 +44,30 @@ getIndexStr :: MonadIO m => Int -> m (Maybe String)
 getIndexStr i = liftIO $ do
   jsStrMaybe <- getIndex i localStorage
   return $ fmap unpack jsStrMaybe
+
+migrateBrowserWorkspaceStore finalMigrationStep = do
+  liftIO $ do
+    strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
+    case strMaybe of
+      Just str -> do
+        setItem (workspaceKey defaultWorkspaceName) str localStorage
+        removeItem (pack . UTF8.toString $ "splitActions") localStorage
+      Nothing -> return ()
+  -- Make sure we can read all workspaces: Delete unreadable workspaces.
+  wss <- getWorkspaces BrowserWorkspaceStore
+  forM_ wss $ \ws -> do
+    let (WorkspaceId wsName) = workspaceId ws
+    actions :: Either String Actions <- getJson (workspaceKey wsName)
+    case actions of
+      Right _ -> return ()
+      Left err -> do
+        liftIO . putStrLn
+          $ printf
+            ( "Failed to parse actions for workspace '%s' "
+              ++ "deleting the workspace, error: %s" )
+            wsName err
+        deleteWorkspace BrowserWorkspaceStore (workspaceId ws)
+  workspaceStoreCleanup BrowserWorkspaceStore finalMigrationStep
 
 instance WorkspaceStore BrowserWorkspaceStore where
   createWorkspace _ workspaceName = do
@@ -74,26 +98,4 @@ instance WorkspaceStore BrowserWorkspaceStore where
             . filter isJust
             <$> mapM getIndexStr [0..len - 1]
     return $ zipWith Workspace (map WorkspaceId names) names
-  migrate this = do
-    liftIO $ do
-      strMaybe <- getItem (pack . UTF8.toString $ "splitActions") localStorage
-      case strMaybe of
-        Just str -> do
-          setItem (workspaceKey defaultWorkspaceName) str localStorage
-          removeItem (pack . UTF8.toString $ "splitActions") localStorage
-        Nothing -> return ()
-    -- Make sure we can read all workspaces: Delete unreadable workspaces.
-    wss <- getWorkspaces this
-    forM_ wss $ \ws -> do
-      let (WorkspaceId wsName) = workspaceId ws
-      actions :: Either String Actions <- getJson (workspaceKey wsName)
-      case actions of
-        Right _ -> return ()
-        Left err -> do
-          liftIO . putStrLn
-            $ printf
-              ( "Failed to parse actions for workspace '%s' "
-                ++ "deleting the workspace, error: %s" )
-              wsName err
-          deleteWorkspace this (workspaceId ws)
-    workspaceStoreCleanup this
+  migrate _ = migrateBrowserWorkspaceStore True

@@ -6,7 +6,8 @@ module AutomergeWorkspaceStore where
 
 import Automerge              (AutomergeUrl (AutomergeUrl), createDocument,
                                findDocument, updateDocument)
-import BrowserWorkspaceStore  (BrowserWorkspaceStore (BrowserWorkspaceStore))
+import BrowserWorkspaceStore  (BrowserWorkspaceStore (BrowserWorkspaceStore),
+                               migrateBrowserWorkspaceStore)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.JSString          (JSString, pack, unpack)
 import Data.List              (isPrefixOf)
@@ -22,7 +23,7 @@ import WorkspaceStore         (Workspace (Workspace, workspaceId),
                                                wipeWorkspace),
                                copyWorkspaces, workspaceStoreCleanup)
 
-data AutomergeWorkspaceStore = AutomergeWorkspaceStore
+data AutomergeWorkspaceStore = AutomergeWorkspaceStore deriving Show
 
 workspaceKeyPrefix = "automerge_workspace:"
 workspaceKeyPrefixLen = length workspaceKeyPrefix
@@ -90,7 +91,7 @@ instance WorkspaceStore AutomergeWorkspaceStore where
     names <- mapM workspaceNameByUrl urls
     return $ zipWith Workspace (map WorkspaceId urls) names
   migrate this = do
-    migrate BrowserWorkspaceStore
+    migrateBrowserWorkspaceStore False
     copyWorkspaces BrowserWorkspaceStore this
-    workspaceStoreCleanup this
+    workspaceStoreCleanup this True
 
