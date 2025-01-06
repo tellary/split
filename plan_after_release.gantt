@@ -1,25 +1,38 @@
 @startgantt
 
-Project starts 2024-09-27
+Project starts 2024-09-12
 saturday are closed
 sunday are closed
 
-[Avoid creating 'Default' when re-using BrowserWorkspaceStore(migrate) in AutomergeWorkspaceStore(migrate)]
+today is 2025-01-06
+today is colored in lightgrey
+
+[Implement multiple workspaces] is 100% completed and starts on 2024-09-12 and ends on 2024-11-24
+[Implement multiple workspaces] pauses from 2024-09-13 to 2024-11-20
+[First version of automerge.org CRDT to sync devices] is 100% completed and starts on 2024-12-12 and ends on 2024-12-19
+[First version of automerge.org CRDT to sync devices] pauses from 2024-12-13 to 2024-12-16
+[Support copy-sharing a workspace link] is 100% completed and starts on 2024-12-21
+[Avoid creating 'Default' workspace when re-using BrowserWorkspaceStore(migrate) in AutomergeWorkspaceStore(migrate)] is 100% completed and starts on 2024-12-21
+[Rename workspace] is 0% completed and starts on 2025-01-10
+then [Copy workspace] is 0% completed
+then [Delete workspace] is 0% completed
+then [Keep user, description and amount when changing 'action type' in 'add expense' form] is 0% completed
+then [Support "split equally to all" items in "itemized split"] is 0% completed
+then [Support "split equally" items in "itemized split"] is 0% completed
+then [Allow multiple payers with different amounts in a single expense] is 0% completed
 then [User spend is improperly reported if the user pays tips but has no items in an itemized split] is 0% completed
+then [Report exact users, not groups in the second level of the report] is 0% completed
 then [Report error on failure to read data from browser storage] is 0% completed
-then [Allow to delete a 'Default' workspace if there are 2 or more 'Default' workspaces]
-then [Don't add purchase when only one user group exists] is 0% completed
-then [Custom tips amount] is 0% completed
+then [Allow to delete a 'Default' workspace if there are 2 or more 'Default' workspaces] is 0% completed
+then [Don't add expense when only one user group exists] is 0% completed
+then [Custom tips amount (not custom percentage)] is 0% completed
 then [Edit split items] is 0% completed
-then [Implement multiple workspaces] is 0% completed and requires 2 days and starts on 2024-08-21
 then [Move user management to a separate tab] is 0% completed
 then [Support itemized 'ItemizedSplitTipsType' on UI] is 0% completed
 then [Add validation that sum of split items == amount of the cheque] is 0% completed
 then [Support "number of units in an item" in "itemized split"] is 0% completed
 then [Claim units of split items] is 0% completed
-then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" purchase] is 0% completed
-then [Preserve user, amount and description between different types of purchases] is 0% completed
-then [Implement editing of purchases] is 0% completed and requires 2 days
+then ["Payed 210 out of 210 for Ilya and Tasha" for "split equally" expense] is 0% completed
 then [Use standard Reflex functions to work with lists] is 0% completed
 then [Don't report users that have no transactions] is 0% completed
 then [Reset fields in action addition form] is 0% completed
@@ -28,5 +41,9 @@ then [Use 'mdash' HTML entity] is 0% completed
 then [Add user-centric report stat] is 0% completed
 then [Use Tailwind material] is 0% completed and requires 3 days
 then [Add context ads] is 0% completed
-
+then [Validate actions] is 0% completed
+then [Implement OAuth with Google] is 0% completed
+then [Restrict workspace editing to certain users] is 0% completed
+then [Implement addition of users to the workspace] is 0% completed
+then [Allow workspace editing to certain users in the workspace] is 0% completed
 @endgantt
