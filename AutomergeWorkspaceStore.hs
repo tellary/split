@@ -20,7 +20,7 @@ import WorkspaceStore         (Workspace (Workspace, workspaceId),
                                WorkspaceStore (createWorkspace, deleteWorkspace,
                                                getActions, getWorkspaces,
                                                migrate, putActions,
-                                               wipeWorkspace),
+                                               renameWorkspace, wipeWorkspace),
                                copyWorkspaces, workspaceStoreCleanup)
 
 data AutomergeWorkspaceStore = AutomergeWorkspaceStore deriving Show
@@ -66,6 +66,10 @@ instance WorkspaceStore AutomergeWorkspaceStore where
   createWorkspace _ workspaceName = liftIO $ do
     AutomergeUrl url <- createDocument "workspaceName" workspaceName
     setItem (workspaceKey (WorkspaceId url)) (pack $ workspaceName) localStorage
+    return $ Workspace (WorkspaceId url) workspaceName
+  renameWorkspace _ (WorkspaceId url) workspaceName = liftIO $ do
+    setItem (workspaceKey (WorkspaceId url)) (pack $ workspaceName) localStorage
+    updateDocument (AutomergeUrl url) "workspaceName" workspaceName
     return $ Workspace (WorkspaceId url) workspaceName
   putActions _ (WorkspaceId url) actions
     = liftIO $ updateDocument (AutomergeUrl url) "actions" actions

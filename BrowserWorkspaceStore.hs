@@ -72,6 +72,10 @@ migrateBrowserWorkspaceStore finalMigrationStep = do
 instance WorkspaceStore BrowserWorkspaceStore where
   createWorkspace _ workspaceName = do
     return $ Workspace (WorkspaceId workspaceName) workspaceName
+  renameWorkspace _ _
+    = error
+      $  "BrowserWorkspaceStore is not supported => "
+      ++ "renameWorkspace is not implemented"
   putActions _ (WorkspaceId workspaceName) actions
     = setJson (workspaceKey workspaceName) actions
   getActions _ (WorkspaceId workspaceName)
