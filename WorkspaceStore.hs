@@ -24,6 +24,7 @@ defaultWorkspaceName = "Default"
 
 class Show s => WorkspaceStore s where
   createWorkspace :: MonadIO m => s -> WorkspaceName -> m Workspace
+  renameWorkspace :: MonadIO m => s -> WorkspaceId -> WorkspaceName -> m Workspace
   putActions :: MonadIO m => s -> WorkspaceId -> Actions -> m ()
   getActions :: MonadIO m => s -> WorkspaceId -> m Actions
   deleteWorkspace :: MonadIO m => s -> WorkspaceId -> m ()
@@ -101,6 +102,10 @@ defaultActions
 instance WorkspaceStore StubWorkspaceStore where
   createWorkspace _ workspaceName
     = trace ("createWorkspace: " ++ workspaceName)
+    . return
+    $ Workspace (WorkspaceId (workspaceName ++ " (id)")) workspaceName
+  renameWorkspace _ workspaceId workspaceName
+    = trace (printf "renameWorkspace: %s %s" (show workspaceId) workspaceName)
     . return
     $ Workspace (WorkspaceId (workspaceName ++ " (id)")) workspaceName
   putActions _ (WorkspaceId workspaceId) _

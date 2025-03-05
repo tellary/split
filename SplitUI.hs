@@ -12,7 +12,7 @@
 module SplitUI where
 
 import           Control.Lens               (view)
-import           Control.Monad              (join)
+import           Control.Monad              (join, when)
 import           Control.Monad.Fix          (MonadFix)
 import           Control.Monad.IO.Class     (MonadIO (liftIO))
 import           Control.Monad.Trans.Except (runExceptT)
@@ -43,6 +43,7 @@ import           WorkspaceStore             (Workspace (workspaceId,
                                                              getWorkspaces,
                                                              migrate,
                                                              putActions,
+                                                             renameWorkspace,
                                                              wipeWorkspace),
                                              defaultWorkspaceName)
 
@@ -71,7 +72,21 @@ data WorkspaceState
   | CreateNewWorkspaceState          Workspace [Workspace]
   | ConfirmDeleteWorkspaceState      Workspace [Workspace]
   | ConfirmWipeWorkspaceState        Workspace [Workspace]
+  | RenameWorkspaceState             Workspace [Workspace]
   deriving Show
+
+validateWorkspaceName :: [Workspace] -> Text -> Either Text String
+validateWorkspaceName wss workspaceNameText = do
+  let workspaceNameStr = T.unpack . T.strip $ workspaceNameText
+  when (null $ workspaceNameStr)
+    $ Left "Empty workspace names are not allowed"
+  when (workspaceNameStr == defaultWorkspaceName)
+    $ Left "Workspace name 'Default' is reserved for the default workspace"
+  when (workspaceNameStr `elem` map workspaceName wss)
+    . Left
+    . T.pack
+    $ printf "Workspace '%s' already exists" workspaceNameStr
+  return workspaceNameStr
 
 newWorkspace
   :: (MonadWidget t m, WorkspaceStore store)
@@ -79,12 +94,9 @@ newWorkspace
 newWorkspace store isInitState defWs wss = do
   text "New workspace name: "
   rec
-    (ev, userInput) <- resettableInput addWorkspaceButton $
-      \workspaceName ->
-        let workspaceNameStr = T.unpack . T.strip $ workspaceName
-        in if null $ workspaceNameStr
-           then Left $ "Empty workspace names are not allowed"
-           else Right workspaceNameStr
+    (ev, userInput) <-
+      resettableInput addWorkspaceButton
+      $ validateWorkspaceName wss
     text " "
     addWorkspaceButton <- button "Add Workspace"
     cancelButton <- button "Cancel"
@@ -110,6 +122,26 @@ currentWorkspace (MultipleWorkspaceState      ws _)    = ws
 currentWorkspace (CreateNewWorkspaceState     ws _)    = ws
 currentWorkspace (ConfirmDeleteWorkspaceState ws _)    = ws
 currentWorkspace (ConfirmWipeWorkspaceState   ws _)    = ws
+currentWorkspace (RenameWorkspaceState ws _) = ws
+
+manageWorkspaceMenu
+  :: MonadWidget t m => Workspace -> m (Event t ([Workspace] -> WorkspaceState))
+manageWorkspaceMenu currentWs = do
+  el "br" blank
+  let wsName = workspaceName currentWs
+  renameEv <- if wsName /= defaultWorkspaceName
+    then button "Rename"
+    else return never
+  deleteEv <- if wsName == defaultWorkspaceName
+              then fmap (ConfirmWipeWorkspaceState currentWs <$)
+                   $ button "Wipe the default workspace"
+              else fmap (ConfirmDeleteWorkspaceState currentWs <$)
+                   $ button "Delete"
+  el "br" blank
+  return . leftmost $
+    [ deleteEv
+    , RenameWorkspaceState currentWs <$ renameEv
+    ]
 
 manageWorkspaces
   :: (MonadWidget t m, WorkspaceStore workspaceStore)
@@ -133,7 +165,7 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
     manageWorkspacesState (InitialWorkspaceState initialWs) = el "p" $ do
       text . T.pack
         $  "Separate workspaces allow to track shared expenses "
-        ++ "for different purpose and users. "
+        ++ "for different purposes and users. "
         ++ "You are working in the default workspace now, you can "
       (elCreate, _) <- elAttr' "a" ("class" =: "link")
                      $ text "create another workspace"
@@ -185,23 +217,14 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
                                     )
                                 )
                                 def
-      deleteEv <-
-        case workspaceName defWs of
-          wsName | wsName == defaultWorkspaceName
-                   -> fmap (True <$) $ button "Wipe the default workspace"
-                 | otherwise
-                   -> fmap (False <$) . button . T.pack
-                   $ printf "Delete the '%s' workspace" (workspaceName defWs)
+      menuEv <- manageWorkspaceMenu defWs
       return . leftmost $
         [ fmap ( \case
                    idx | idx == newIdx -> CreateNewWorkspaceState defWs      wss
                        | otherwise     -> MultipleWorkspaceState  (wss!!idx) wss
                )
           $ view dropdown_change wsEl
-        , (\case
-              True  -> ConfirmWipeWorkspaceState defWs wss
-              False -> ConfirmDeleteWorkspaceState defWs wss
-          ) <$> deleteEv
+        , (\f -> f wss) <$> menuEv
         ]
     manageWorkspacesState (CreateNewWorkspaceState defWs wss) = do
       selectEv <- manageWorkspacesState (MultipleWorkspaceState defWs wss)
@@ -248,6 +271,33 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
           [ selectEv
           , MultipleWorkspaceState wipeWs wss <$ wipedEv
           , MultipleWorkspaceState wipeWs wss <$ cancelEv
+          ]
+    manageWorkspacesState (RenameWorkspaceState currentWs wss) = do
+      selectEv <- manageWorkspacesState (MultipleWorkspaceState currentWs wss)
+      text "New workspace name: "
+      rec
+        (ev, userInput) <-
+          resettableInput renameWorkspaceButton
+          $ validateWorkspaceName wss
+        text " "
+        renameWorkspaceButton <- button "Rename Workspace"
+        cancelButton <- button "Cancel"
+        dynText =<< (errorDyn "" renameWorkspaceButton $ userInput)
+        workspaceRenamedEv <-
+          performEvent
+          ( renameWorkspace workspaceStore (workspaceId currentWs)
+            <$> tagValid userInput ev
+          )
+      return . leftmost $
+          [ selectEv
+          , MultipleWorkspaceState currentWs wss <$ cancelButton
+          , fmap
+            (\newWorkspace ->
+               MultipleWorkspaceState
+               newWorkspace
+               (delete currentWs wss ++ [newWorkspace])
+            )
+            $ workspaceRenamedEv
           ]
 
 manageUsers
