@@ -1327,6 +1327,8 @@ app
   => s -> (Workspace -> m ()) -> m () -> Maybe WorkspaceId -> m ()
 app store onWsChange copyShareWorkspaceLink maybeFirstWsId = do
   migrate store
+  -- TODO: Workspaces should be re-initialized
+  -- on workspace rename in another browser
   workspaces0 <- getWorkspaces store
   workspaces  <- if null workspaces0
                  then do

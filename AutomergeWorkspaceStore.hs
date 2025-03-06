@@ -36,12 +36,25 @@ getIndexStr i = liftIO $ do
   jsStrMaybe <- getIndex i localStorage
   return $ fmap unpack jsStrMaybe
 
-workspaceNameByUrl :: String -> IO String
-workspaceNameByUrl url = do
-  jsStrMaybe <- getItem (workspaceKey . WorkspaceId $ url) localStorage
-  return
-    . maybe (error "workspaceNameByUrl: missing key: " ++ workspaceKeyStr url) unpack
-    $ jsStrMaybe
+setWorkspaceNameInLocalStorage url workspaceName
+  = setItem (workspaceKey (WorkspaceId url)) (pack $ workspaceName) localStorage
+
+getAndFixupWorkspaceName :: String -> IO String
+getAndFixupWorkspaceName url = do
+  maybeWsName <- findDocument (AutomergeUrl url) "workspaceName"
+  case maybeWsName of
+    Just wsName -> do
+      setWorkspaceNameInLocalStorage url wsName
+      return wsName
+    Nothing -> do
+      jsStrMaybe <- getItem (workspaceKey . WorkspaceId $ url) localStorage
+      return
+        . maybe
+          ( error "getAndFixupWorkspaceName: missing key: "
+            ++ workspaceKeyStr url
+          )
+          unpack
+        $ jsStrMaybe
 
 addExternalWorkspace (AutomergeUrl url) = do
   let wsId = WorkspaceId url
@@ -65,10 +78,10 @@ addExternalWorkspace (AutomergeUrl url) = do
 instance WorkspaceStore AutomergeWorkspaceStore where
   createWorkspace _ workspaceName = liftIO $ do
     AutomergeUrl url <- createDocument "workspaceName" workspaceName
-    setItem (workspaceKey (WorkspaceId url)) (pack $ workspaceName) localStorage
+    setWorkspaceNameInLocalStorage url workspaceName
     return $ Workspace (WorkspaceId url) workspaceName
   renameWorkspace _ (WorkspaceId url) workspaceName = liftIO $ do
-    setItem (workspaceKey (WorkspaceId url)) (pack $ workspaceName) localStorage
+    setWorkspaceNameInLocalStorage url workspaceName
     updateDocument (AutomergeUrl url) "workspaceName" workspaceName
     return $ Workspace (WorkspaceId url) workspaceName
   putActions _ (WorkspaceId url) actions
@@ -92,7 +105,7 @@ instance WorkspaceStore AutomergeWorkspaceStore where
             . map fromJust
             . filter isJust
             <$> mapM getIndexStr [0..len - 1]
-    names <- mapM workspaceNameByUrl urls
+    names <- mapM getAndFixupWorkspaceName urls
     return $ zipWith Workspace (map WorkspaceId urls) names
   migrate this = do
     migrateBrowserWorkspaceStore False
