@@ -37,7 +37,8 @@ import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
 import           WorkspaceStore             (Workspace (workspaceId,
                                                         workspaceName),
                                              WorkspaceId,
-                                             WorkspaceStore (createWorkspace,
+                                             WorkspaceStore (copyWorkspace,
+                                                             createWorkspace,
                                                              deleteWorkspace,
                                                              getActions,
                                                              getWorkspaces,
@@ -49,11 +50,17 @@ import           WorkspaceStore             (Workspace (workspaceId,
 
 resettableInput
   :: forall t m a b . (Show b, DomBuilder t m, MonadHold t m, MonadFix m)
-  => Event t a -> (Text -> Either Text b)
+  => Event t a -> Maybe Text -> (Text -> Either Text b)
   -> m (Event t b, ValidDynamic t Text b)
-resettableInput submitEvent validation = do
+resettableInput submitEvent initalValue validation = do
   rec
-    input <- inputElement $ def & inputElementConfig_setValue .~ ("" <$ ev)
+    let config0 = def & inputElementConfig_setValue .~ ("" <$ ev)
+    let config
+          = maybe
+            config0
+            (\text -> config0 & inputElementConfig_initialValue .~ text)
+            initalValue
+    input <- inputElement config
     let evEnter = keypress Enter input
     let submitOrEnterEv = leftmost [evEnter, () <$ submitEvent]
     let validInput :: ValidDynamic t Text b
@@ -73,6 +80,7 @@ data WorkspaceState
   | ConfirmDeleteWorkspaceState      Workspace [Workspace]
   | ConfirmWipeWorkspaceState        Workspace [Workspace]
   | RenameWorkspaceState             Workspace [Workspace]
+  | CopyWorkspaceState               Workspace [Workspace]
   deriving Show
 
 validateWorkspaceName :: [Workspace] -> Text -> Either Text String
@@ -95,7 +103,7 @@ newWorkspace store isInitState defWs wss = do
   text "New workspace name: "
   rec
     (ev, userInput) <-
-      resettableInput addWorkspaceButton
+      resettableInput addWorkspaceButton Nothing
       $ validateWorkspaceName wss
     text " "
     addWorkspaceButton <- button "Add Workspace"
@@ -115,14 +123,15 @@ newWorkspace store isInitState defWs wss = do
       else MultipleWorkspaceState defWs wss <$ cancelButton
     ]
 
-currentWorkspace (InitialWorkspaceState ws)            = ws
-currentWorkspace (ConfirmWipeInitialWorkspaceState ws) = ws
-currentWorkspace (CreateSecondWorkspaceState ws)       = ws
-currentWorkspace (MultipleWorkspaceState      ws _)    = ws
-currentWorkspace (CreateNewWorkspaceState     ws _)    = ws
-currentWorkspace (ConfirmDeleteWorkspaceState ws _)    = ws
-currentWorkspace (ConfirmWipeWorkspaceState   ws _)    = ws
-currentWorkspace (RenameWorkspaceState ws _) = ws
+currentWorkspace (InitialWorkspaceState            ws  ) = ws
+currentWorkspace (ConfirmWipeInitialWorkspaceState ws  ) = ws
+currentWorkspace (CreateSecondWorkspaceState       ws  ) = ws
+currentWorkspace (MultipleWorkspaceState           ws _) = ws
+currentWorkspace (CreateNewWorkspaceState          ws _) = ws
+currentWorkspace (ConfirmDeleteWorkspaceState      ws _) = ws
+currentWorkspace (ConfirmWipeWorkspaceState        ws _) = ws
+currentWorkspace (RenameWorkspaceState             ws _) = ws
+currentWorkspace (CopyWorkspaceState               ws _) = ws
 
 manageWorkspaceMenu
   :: MonadWidget t m => Workspace -> m (Event t ([Workspace] -> WorkspaceState))
@@ -132,6 +141,7 @@ manageWorkspaceMenu currentWs = do
   renameEv <- if wsName /= defaultWorkspaceName
     then button "Rename"
     else return never
+  copyEv <- button "Copy"
   deleteEv <- if wsName == defaultWorkspaceName
               then fmap (ConfirmWipeWorkspaceState currentWs <$)
                    $ button "Wipe the default workspace"
@@ -141,6 +151,7 @@ manageWorkspaceMenu currentWs = do
   return . leftmost $
     [ deleteEv
     , RenameWorkspaceState currentWs <$ renameEv
+    , CopyWorkspaceState currentWs <$ copyEv
     ]
 
 manageWorkspaces
@@ -277,7 +288,7 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
       text "New workspace name: "
       rec
         (ev, userInput) <-
-          resettableInput renameWorkspaceButton
+          resettableInput renameWorkspaceButton Nothing
           $ validateWorkspaceName wss
         text " "
         renameWorkspaceButton <- button "Rename Workspace"
@@ -299,6 +310,35 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
             )
             $ workspaceRenamedEv
           ]
+    manageWorkspacesState (CopyWorkspaceState currentWs wss) = do
+      selectEv <- manageWorkspacesState (MultipleWorkspaceState currentWs wss)
+      text "Copied workspace name: "
+      rec
+        (ev, userInput) <-
+          resettableInput
+          copyWorkspaceButton
+          (Just (T.pack $ workspaceName currentWs))
+          (validateWorkspaceName wss)
+        text " "
+        copyWorkspaceButton <- button "Copy Workspace"
+        cancelButton <- button "Cancel"
+        dynText =<< (errorDyn "" copyWorkspaceButton $ userInput)
+        workspaceCopiedEv <-
+          performEvent
+          ( copyWorkspace workspaceStore (workspaceId currentWs)
+            <$> tagValid userInput ev
+          )
+      return . leftmost $
+          [ selectEv
+          , MultipleWorkspaceState currentWs wss <$ cancelButton
+          , fmap
+            (\newWorkspace ->
+               MultipleWorkspaceState
+               newWorkspace
+               (wss ++ [newWorkspace])
+            )
+            $ workspaceCopiedEv
+          ]
 
 manageUsers
   :: forall t m .
@@ -308,23 +348,23 @@ manageUsers users0 actions = do
   el "h2" $ text "Manage users"
   rec
     let addUserEvDyn :: Dynamic t (m (Event t User)) = do
-        users <- users
-        let widget :: m (Event t User) = mdo
-              (ev, userInput) <- resettableInput addUserButtonEv $
-                \user ->
-                  let userStr = T.unpack . T.strip $ user
-                  in if null $ userStr
-                  then Left $ "Empty users names are not allowed"
-                  else if userStr `elem` users
-                       then Left
-                            . T.pack
-                            $ printf "User '%s' already exists" userStr
-                       else Right userStr
-              addUserButtonEv <- button "Add user"
-              text " "
-              dynText =<< (errorDyn "" addUserButtonEv $ userInput)
-              return $ tagPromptlyValid userInput ev
-        return widget
+          users <- users
+          let widget :: m (Event t User) = mdo
+                (ev, userInput) <- resettableInput addUserButtonEv Nothing $
+                  \user ->
+                    let userStr = T.unpack . T.strip $ user
+                    in if null $ userStr
+                    then Left $ "Empty users names are not allowed"
+                    else if userStr `elem` users
+                         then Left
+                              . T.pack
+                              $ printf "User '%s' already exists" userStr
+                         else Right userStr
+                addUserButtonEv <- button "Add user"
+                text " "
+                dynText =<< (errorDyn "" addUserButtonEv $ userInput)
+                return $ tagPromptlyValid userInput ev
+          return widget
     addUserEv <- switchHold never =<< dyn addUserEvDyn
     users :: Dynamic t [User] <-
       foldDyn ($) users0

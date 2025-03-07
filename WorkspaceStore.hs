@@ -24,7 +24,15 @@ defaultWorkspaceName = "Default"
 
 class Show s => WorkspaceStore s where
   createWorkspace :: MonadIO m => s -> WorkspaceName -> m Workspace
-  renameWorkspace :: MonadIO m => s -> WorkspaceId -> WorkspaceName -> m Workspace
+  renameWorkspace :: MonadIO m
+    => s -> WorkspaceId -> WorkspaceName -> m Workspace
+  copyWorkspace :: MonadIO m
+    => s -> WorkspaceId -> WorkspaceName -> m Workspace
+  copyWorkspace this wsId wsName = do
+    newWs <- createWorkspace this wsName
+    actions <- getActions this wsId
+    putActions this (workspaceId newWs) actions
+    return newWs
   putActions :: MonadIO m => s -> WorkspaceId -> Actions -> m ()
   getActions :: MonadIO m => s -> WorkspaceId -> m Actions
   deleteWorkspace :: MonadIO m => s -> WorkspaceId -> m ()
