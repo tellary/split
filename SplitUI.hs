@@ -27,6 +27,8 @@ import           Reflex.Dom                 hiding (Group)
 import           SplitReport
 import           Text.Printf                (printf)
 import           Text.Read                  (readMaybe)
+import           Text.Regex.Base            (MatchResult (mrAfter, mrBefore))
+import           Text.Regex.TDFA            ((=~))
 import           ValidDynamic               (ValidDynamic, assumeValidDynamic,
                                              assumeValidValue, dropValidDynamic,
                                              errorDyn, errorWidget, fromDynamic,
@@ -153,6 +155,19 @@ manageWorkspaceMenu currentWs = do
     , RenameWorkspaceState currentWs <$ renameEv
     , CopyWorkspaceState currentWs <$ copyEv
     ]
+
+copyWorkspaceNameSuffixRegex = " \\(copy.*\\)" :: String
+
+copyWorkspaceName :: [String] -> String -> String
+copyWorkspaceName wss currentWs
+  = head
+  . filter (not . (`elem` wss))
+  . flip map ("":map ((' ':) . show) [1::Int ..])
+  $ printf "%s (copy%s)" noCopySuffix
+  where
+    matchResult
+      = currentWs =~ copyWorkspaceNameSuffixRegex :: MatchResult String
+    noCopySuffix = mrBefore matchResult ++ mrAfter matchResult
 
 manageWorkspaces
   :: (MonadWidget t m, WorkspaceStore workspaceStore)
@@ -288,7 +303,9 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
       text "New workspace name: "
       rec
         (ev, userInput) <-
-          resettableInput renameWorkspaceButton Nothing
+          resettableInput
+          renameWorkspaceButton
+          ( Just . T.pack . workspaceName $ currentWs )
           $ validateWorkspaceName wss
         text " "
         renameWorkspaceButton <- button "Rename Workspace"
@@ -317,8 +334,14 @@ manageWorkspaces workspaceStore copyShareWorkspaceLink initialWorkspaceState = d
         (ev, userInput) <-
           resettableInput
           copyWorkspaceButton
-          (Just (T.pack $ workspaceName currentWs))
-          (validateWorkspaceName wss)
+          ( Just
+            ( T.pack
+              . copyWorkspaceName (map workspaceName wss)
+              . workspaceName
+              $ currentWs
+            )
+          )
+          ( validateWorkspaceName wss )
         text " "
         copyWorkspaceButton <- button "Copy Workspace"
         cancelButton <- button "Cancel"

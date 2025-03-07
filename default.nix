@@ -20,6 +20,7 @@ let pkgs = import
       monadlist
       file-embed
       utf8-string
+      regex-tdfa
     ]);
   ghc = reflex-platform.ghc.ghcWithPackages deps;
   ghcjs = reflex-platform.ghcjs.ghcWithPackages deps;
