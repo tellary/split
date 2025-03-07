@@ -4,7 +4,7 @@ Project starts 2024-09-12
 saturday are closed
 sunday are closed
 
-today is 2025-03-06
+today is 2025-03-07
 today is colored in lightgrey
 
 [Implement multiple workspaces] is 100% completed and starts on 2024-09-12 and ends on 2024-11-24
@@ -14,8 +14,9 @@ today is colored in lightgrey
 [Support copy-sharing a workspace link] is 100% completed and starts on 2024-12-21
 [Avoid creating 'Default' workspace when re-using BrowserWorkspaceStore(migrate) in AutomergeWorkspaceStore(migrate)] is 100% completed and starts on 2024-12-21
 [Rename workspace] is 100% completed and starts on 2025-03-05 and ends on 2025-03-06
-then [Copy workspace] is 0% completed
+[Copy workspace] is 100% completed and starts on 2025-03-06 and ends on 2025-03-07
 then [Delete workspace] is 0% completed
+then [Make 'resettableInput' text field stretch to accomodate initial text length] is 0% completed
 then [Update workspace name in a browser when the workspace was renamed in another browser] is 0% completed
 then [Keep user, description and amount when changing 'action type' in 'add expense' form] is 0% completed
 then [Support "split equally to all" items in "itemized split"] is 0% completed
